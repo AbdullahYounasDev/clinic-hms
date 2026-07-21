@@ -5,7 +5,7 @@ dns.setServers([
   "8.8.4.4"
 ]);
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Poppins } from "next/font/google";
@@ -41,6 +41,13 @@ export const metadata: Metadata = {
   themeColor: NEXT_PUBLIC_THEME_COLOR,
   robots: "noindex, nofollow",
 };
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={poppins.variable}>
@@ -55,9 +62,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{
           __html: `
     (function() {
-      if (localStorage.getItem("theme") === "dark") {
-        document.documentElement.classList.add("dark");
-      }
+      try {
+        if (localStorage.getItem("theme") === "dark") {
+          document.documentElement.classList.add("dark");
+        }
+      } catch (e) {}
     })();
   `,
         }} />

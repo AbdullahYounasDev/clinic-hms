@@ -146,3 +146,66 @@ export function formatDateTime(date: Date | string): string {
   const minutes = String(d.getMinutes()).padStart(2, "0");
   return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
+
+// ─── LAB RESULT HELPERS ───────────────────────────────────
+export function normalizeCatalogId(catalogId: unknown): string | undefined {
+  if (!catalogId) return undefined;
+  if (typeof catalogId === "string") return catalogId;
+  if (typeof catalogId === "object" && catalogId !== null && "_id" in catalogId) {
+    const id = (catalogId as { _id?: unknown })._id;
+    return id ? String(id) : undefined;
+  }
+  return String(catalogId);
+}
+
+export interface LabTestOrderItem {
+  testName: string;
+  testCode?: string;
+  catalogId?: string | { _id?: string };
+}
+
+export interface LabTestResultItem {
+  catalogId?: string | { _id?: string };
+  testName: string;
+  parameterResults?: {
+    parameterName: string;
+    value?: string | number | boolean | null;
+  }[];
+}
+
+export function findLabResultForTest(
+  test: LabTestOrderItem,
+  results: LabTestResultItem[] | undefined
+): LabTestResultItem | undefined {
+  if (!results?.length) return undefined;
+
+  const testCatalogId = normalizeCatalogId(test.catalogId);
+  if (testCatalogId) {
+    const byCatalog = results.find(
+      (result) => normalizeCatalogId(result.catalogId) === testCatalogId
+    );
+    if (byCatalog) return byCatalog;
+  }
+
+  return results.find((result) => result.testName === test.testName);
+}
+
+export function isLabResultComplete(result: LabTestResultItem | undefined): boolean {
+  if (!result?.parameterResults?.length) return false;
+
+  return result.parameterResults.every(
+    (parameter) =>
+      parameter.value !== "" &&
+      parameter.value !== null &&
+      parameter.value !== undefined
+  );
+}
+
+export function getMissingLabTestResults(
+  tests: LabTestOrderItem[] | undefined,
+  results: LabTestResultItem[] | undefined
+): LabTestOrderItem[] {
+  if (!tests?.length) return [];
+
+  return tests.filter((test) => !isLabResultComplete(findLabResultForTest(test, results)));
+}

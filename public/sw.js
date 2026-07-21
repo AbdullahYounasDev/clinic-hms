@@ -1,5 +1,27 @@
-const CACHE_NAME = "clinichms-shell-v1";
+const CACHE_NAME = "clinichms-shell-v2";
 const OFFLINE_URL = "/offline";
+
+function shouldBypass(request) {
+  if (request.method !== "GET") return true;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return true;
+
+  const pathname = url.pathname;
+  if (pathname.startsWith("/api/") || pathname.startsWith("/_next/")) return true;
+  if (pathname === "/sw.js" || pathname.endsWith(".webmanifest")) return true;
+  if (url.searchParams.has("_rsc")) return true;
+
+  if (
+    request.headers.get("RSC") ||
+    request.headers.get("Next-Router-Prefetch") ||
+    request.headers.get("Next-Router-State-Tree")
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -18,20 +40,15 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+  if (shouldBypass(event.request)) return;
+  if (event.request.mode !== "navigate") return;
 
   event.respondWith(
-    fetch(event.request)
-      .then((response) => response)
-      .catch(async () => {
-        const cache = await caches.open(CACHE_NAME);
-        const cached = await cache.match(event.request);
-        if (cached) return cached;
-        if (event.request.mode === "navigate") {
-          const offline = await cache.match(OFFLINE_URL);
-          if (offline) return offline;
-        }
-        return Response.error();
-      })
+    fetch(event.request).catch(async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const offline = await cache.match(OFFLINE_URL);
+      if (offline) return offline;
+      return Response.error();
+    })
   );
 });
