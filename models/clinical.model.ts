@@ -141,6 +141,7 @@ export interface IDoctor extends Document {
   bio?: string;
   languages: string[];
   isAvailable: boolean;
+  status: string;
 }
 
 const DoctorSchema = new Schema<IDoctor>(
@@ -159,6 +160,7 @@ const DoctorSchema = new Schema<IDoctor>(
     bio: { type: String },
     languages: [{ type: String }],
     isAvailable: { type: Boolean, default: true },
+    status: { type: String, enum: ["active", "archived"], default: "active", index: true },
   },
   { timestamps: true }
 );
@@ -232,6 +234,7 @@ export interface IEMR extends Document {
   appointment?: mongoose.Types.ObjectId;
   doctor: mongoose.Types.ObjectId;
   visitDate: Date;
+  status: string;
   chiefComplaint: string;
   symptoms?: string[];
   vitals?: {
@@ -264,6 +267,7 @@ const EMRSchema = new Schema<IEMR>(
     appointment: { type: Schema.Types.ObjectId, ref: "Appointment" },
     doctor: { type: Schema.Types.ObjectId, ref: "Doctor", required: true },
     visitDate: { type: Date, required: true, default: Date.now },
+    status: { type: String, enum: ["active", "archived"], default: "active", index: true },
     chiefComplaint: { type: String, required: true },
     symptoms: [{ type: String }],
     vitals: {

@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Expense } from "@/models/operations.model";
-import { apiSuccess, apiError, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getIpFromHeaders, isInactiveRecord } from "@/lib/utils";
 import { updateExpenseSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
@@ -23,6 +23,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         .lean();
 
     if (!expense) return apiError("Expense not found", 404);
+    if (expense.status === "archived") return apiError("Expense not found", 404);
     return apiSuccess(expense);
 }
 
@@ -157,27 +158,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const expense = await Expense.findById(id);
     if (!expense) return apiError("Expense not found", 404);
-
-    // Delete all associated files from Cloudinary using stored publicId
-    if (expense.receipts && expense.receipts.length > 0) {
-        try {
-            const { deleteMultipleFiles } = await import("@/lib/cloudinary");
-            const publicIds = expense.receipts.map(r => r.publicId);
-            await deleteMultipleFiles(publicIds);
-        } catch (error) {
-            console.error("Error deleting files from Cloudinary:", error);
-            // Continue with deletion even if Cloudinary fails
-        }
-    }
+    if (expense.status === "archived") return apiError("Expense not found", 404);
 
     const expenseTitle = expense.title;
-    await Expense.findByIdAndDelete(id);
+    await Expense.findByIdAndUpdate(id, { status: "archived" });
 
     await auditLog({
         userId: session.user.id,
         action: "delete",
         module: "expenses",
-        description: `Deleted expense: ${expenseTitle}`,
+        description: `Archived expense: ${expenseTitle}`,
         resourceId: id,
         resourceType: "Expense",
         ipAddress: getIpFromHeaders(req.headers),

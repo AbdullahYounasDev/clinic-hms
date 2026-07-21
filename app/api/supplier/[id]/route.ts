@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Supplier } from "@/models/operations.model";
-import { apiSuccess, apiError, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getIpFromHeaders, isInactiveRecord } from "@/lib/utils";
 import { updateSupplierSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
@@ -17,6 +17,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const { id } = await params;
     const supplier = await Supplier.findById(id).lean();
     if (!supplier) return apiError("Supplier not found", 404);
+    if (isInactiveRecord(supplier)) return apiError("Supplier not found", 404);
     return apiSuccess(supplier);
 }
 
@@ -74,12 +75,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const supplier = await Supplier.findById(id);
     if (!supplier) return apiError("Supplier not found", 404);
-    await Supplier.findByIdAndDelete(id);
+    if (isInactiveRecord(supplier)) return apiError("Supplier not found", 404);
+    await Supplier.findByIdAndUpdate(id, { isActive: false });
     await auditLog({
         userId: session.user.id,
         action: "delete",
         module: "pharmacy",
-        description: `Deleted supplier: ${supplier.name}`,
+        description: `Archived supplier: ${supplier.name}`,
         resourceId: id,
         resourceType: "Supplier",
         ipAddress: getIpFromHeaders(req.headers),

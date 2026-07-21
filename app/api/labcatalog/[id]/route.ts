@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { LabCatalog } from "@/models/operations.model";
-import { apiSuccess, apiError, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getIpFromHeaders, isInactiveRecord } from "@/lib/utils";
 import { updateLabCatalogSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
@@ -23,6 +23,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     const test = await LabCatalog.findById(id).lean();
     if (!test) return apiError("Lab test not found", 404);
+    if (isInactiveRecord(test)) return apiError("Lab test not found", 404);
 
     return apiSuccess(test, "Lab test fetched", 200);
 }
@@ -107,30 +108,20 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const test = await LabCatalog.findById(id);
     if (!test) return apiError("Lab test not found", 404);
+    if (isInactiveRecord(test)) return apiError("Lab test not found", 404);
 
-    // Check if test is used in any existing lab orders
-    const { LabTest } = await import("@/models/operations.model");
-    const inUse = await LabTest.findOne({
-        "tests.catalogId": id,
-        status: { $nin: ["completed", "delivered", "cancelled"] },
-    });
-
-    if (inUse) {
-        return apiError("Cannot delete — test is referenced in active lab orders. Deactivate it instead.", 409);
-    }
-
-    // Hard delete
-    await LabCatalog.findByIdAndDelete(id);
+    // Soft delete — deactivate catalog entry
+    await LabCatalog.findByIdAndUpdate(id, { isActive: false });
 
     await auditLog({
         userId: session.user.id,
         action: "delete",
         module: "labcatalog",
-        description: `Deleted lab test ${test.testCode} - ${test.testName}`,
+        description: `Archived lab test ${test.testCode} - ${test.testName}`,
         resourceId: id,
         resourceType: "LabCatalog",
         ipAddress: getIpFromHeaders(req.headers),
     });
 
-    return apiSuccess(null, "Lab test deleted permanently", 200);
+    return apiSuccess(null, "Lab test deleted", 200);
 }

@@ -2,7 +2,7 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/db/mongoose";
 import { Patient } from "@/models/clinical.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, applyPatientStatusFilter } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
     await connectDB();
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const bloodGroup = sp.get("bloodGroup") || "";
 
     const filter: Record<string, unknown> = {};
-    if (status) filter.status = status;
+    applyPatientStatusFilter(filter, status || null);
     if (bloodGroup) filter.bloodGroup = bloodGroup;
     if (search) {
         filter.$or = [

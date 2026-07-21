@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { User } from "@/models/user.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, generateRandomToken } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, generateRandomToken, applyUserStatusFilter } from "@/lib/utils";
 import { createUserSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const role = sp.get("role") || "";
 
   const filter: Record<string, unknown> = {};
-  if (status) filter.status = status;
+  applyUserStatusFilter(filter, status || null);
   if (role) filter.role = role;
   if (search) {
     filter.$or = [

@@ -33,9 +33,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
     if (!record) {
         return apiError("EMR record not found", 404);
     }
+    if (record.status === "archived") {
+        return apiError("EMR record not found", 404);
+    }
 
     // Get associated prescriptions
-    const prescriptions = await Prescription.find({ emr: id })
+    const prescriptions = await Prescription.find({ emr: id, status: { $ne: "cancelled" } })
         .populate("patient", "firstName lastName patientId")
         .populate({ path: "doctor", populate: { path: "user", select: "firstName lastName" } })
         .lean();
@@ -66,6 +69,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // Check if record exists
     const existing = await EMR.findById(id).lean();
     if (!existing) {
+        return apiError("EMR record not found", 404);
+    }
+    if (existing.status === "archived") {
         return apiError("EMR record not found", 404);
     }
 
@@ -110,8 +116,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     // ============ HANDLE PRESCRIPTIONS ============
     if (body.prescriptions !== undefined) {
-        // Delete existing prescriptions for this EMR
-        await Prescription.deleteMany({ emr: id });
+        await Prescription.updateMany({ emr: id, status: { $ne: "cancelled" } }, { status: "cancelled" });
 
         // Create new prescriptions if any
         if (body.prescriptions && body.prescriptions.length > 0) {
@@ -188,18 +193,18 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (!record) {
         return apiError("EMR record not found", 404);
     }
+    if (record.status === "archived") {
+        return apiError("EMR record not found", 404);
+    }
 
-    // Delete associated prescriptions first
-    await Prescription.deleteMany({ emr: id });
-
-    // Delete the EMR record
-    await EMR.findByIdAndDelete(id);
+    await Prescription.updateMany({ emr: id, status: { $ne: "cancelled" } }, { status: "cancelled" });
+    await EMR.findByIdAndUpdate(id, { status: "archived" });
 
     await auditLog({
         userId: session.user.id,
         action: "delete",
         module: "emr",
-        description: `Deleted EMR record ${id}`,
+        description: `Archived EMR record ${id}`,
         resourceId: id,
         ipAddress: getIpFromHeaders(req.headers),
     });

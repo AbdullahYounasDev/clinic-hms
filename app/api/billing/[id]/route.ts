@@ -19,6 +19,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .populate("payments.receivedBy", "firstName lastName")
     .lean();
   if (!invoice) return apiError("Invoice not found", 404);
+  if (invoice.status === "cancelled" || invoice.status === "refunded") return apiError("Invoice not found", 404);
   return apiSuccess(invoice);
 }
 

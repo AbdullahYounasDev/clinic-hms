@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Patient } from "@/models/clinical.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyPatientStatusFilter, isArchivedPatient } from "@/lib/utils";
 import { createPatientSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   const filter: Record<string, unknown> = {};
 
-  if (status) filter.status = status;
+  applyPatientStatusFilter(filter, status);
   if (bloodGroup) filter.bloodGroup = bloodGroup;
   if (search) {
     filter.$or = [

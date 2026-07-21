@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     }
 
     case "patients": {
-      const patients = await Patient.find({ createdAt: { $gte: from, $lte: to } }).lean();
+      const patients = await Patient.find({ status: "active", createdAt: { $gte: from, $lte: to } }).lean();
       data = patients.map(p => ({
         "Patient ID": (p as Record<string, unknown>).patientId,
         "First Name": (p as Record<string, unknown>).firstName,

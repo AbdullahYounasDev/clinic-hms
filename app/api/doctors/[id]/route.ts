@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Doctor } from "@/models/clinical.model";
-import { apiSuccess, apiError, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getIpFromHeaders, isInactiveRecord } from "@/lib/utils";
 import { hasPermission, auditLog } from "@/lib/auth/audit";
 
 interface Params { params: Promise<{ id: string }> }
@@ -20,6 +20,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     .populate("department", "name code")
     .lean();
   if (!doctor) return apiError("Doctor not found", 404);
+  if (isInactiveRecord(doctor)) return apiError("Doctor not found", 404);
   return apiSuccess(doctor);
 }
 
@@ -36,6 +37,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   const existing = await Doctor.findById(id).lean();
   if (!existing) return apiError("Doctor not found", 404);
+  if (isInactiveRecord(existing)) return apiError("Doctor not found", 404);
 
   // Allowed fields to update
   const allowed = [

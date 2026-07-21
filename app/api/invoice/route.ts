@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Invoice, Medicine } from "@/models/operations.model";
 import { Patient } from "@/models/clinical.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyInvoiceStatusFilter } from "@/lib/utils";
 import { createInvoiceSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
@@ -24,10 +24,11 @@ export async function GET(req: NextRequest) {
 
     const filter: Record<string, unknown> = {};
     if (invoiceType) filter.invoiceType = invoiceType;
-    if (status) filter.status = status;
+    applyInvoiceStatusFilter(filter, status || null);
     if (patientId) filter.patient = patientId;
     if (search) {
         const patientIds = await Patient.find({
+            status: "active",
             $or: [
                 { firstName: { $regex: search, $options: "i" } },
                 { lastName: { $regex: search, $options: "i" } }

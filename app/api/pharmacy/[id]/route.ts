@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Medicine } from "@/models/operations.model";
-import { apiSuccess, apiError, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getIpFromHeaders, isInactiveRecord } from "@/lib/utils";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { updateMedicineSchema } from "@/lib/validations";
 
@@ -22,6 +22,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         .lean();
 
     if (!medicine) return apiError("Medicine not found", 404);
+    if (isInactiveRecord(medicine)) return apiError("Medicine not found", 404);
     return apiSuccess(medicine);
 }
 
@@ -97,15 +98,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const medicine = await Medicine.findById(id);
     if (!medicine) return apiError("Medicine not found", 404);
+    if (isInactiveRecord(medicine)) return apiError("Medicine not found", 404);
 
     const medicineName = medicine.name;
-    await Medicine.findByIdAndDelete(id);
+    await Medicine.findByIdAndUpdate(id, { isActive: false });
 
     await auditLog({
         userId: session.user.id,
         action: "delete",
         module: "pharmacy",
-        description: `Deleted medicine: ${medicineName}`,
+        description: `Archived medicine: ${medicineName}`,
         resourceId: id,
         resourceType: "Medicine",
         ipAddress: getIpFromHeaders(req.headers),

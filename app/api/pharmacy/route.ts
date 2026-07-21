@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Medicine } from "@/models/operations.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyIsActiveFilter } from "@/lib/utils";
 import { createMedicineSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { NotificationService } from "@/services/notification.service";
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const category = sp.get("category");
   const isActive = sp.get("isActive");
   const filter: Record<string, unknown> = {};
-  if (isActive !== undefined && isActive !== null && isActive !== "") filter.isActive = isActive === "true";
+  applyIsActiveFilter(filter, isActive);
   if (search) filter.$or = [{ name: { $regex: search, $options: "i" } }, { genericName: { $regex: search, $options: "i" } }];
   if (lowStock) filter.$expr = { $lte: ["$currentStock", "$minStockLevel"] };
   if (category) filter.category = category;

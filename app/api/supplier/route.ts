@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Supplier } from "@/models/operations.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyIsActiveFilter } from "@/lib/utils";
 import { createSupplierSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const type = sp.get("type") || "";
     const isActive = sp.get("isActive");
     const filter: Record<string, unknown> = {};
-    if (isActive !== undefined && isActive !== null && isActive !== "") filter.isActive = isActive === "true";
+    applyIsActiveFilter(filter, isActive);
     if (type) filter.type = type;
     if (search) filter.$or = [{ name: { $regex: search, $options: "i" } }, { contactPerson: { $regex: search, $options: "i" } }];
     const [suppliers, total] = await Promise.all([

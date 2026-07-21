@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { LabCatalog } from "@/models/operations.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyIsActiveFilter } from "@/lib/utils";
 import { createLabCatalogSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     const filter: Record<string, unknown> = {};
     if (category) filter.category = category;
-    if (isActive !== null && isActive !== "") filter.isActive = isActive === "true";
+    applyIsActiveFilter(filter, isActive);
 
     if (search) {
         filter.$or = [

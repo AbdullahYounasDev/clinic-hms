@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { InventoryItem } from "@/models/operations.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyIsActiveFilter } from "@/lib/utils";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { z } from "zod";
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   const search = sp.get("search") || "";
   const isActive = sp.get("isActive");
   const filter: Record<string, unknown> = {};
-  if (isActive !== undefined && isActive !== null && isActive !== "") filter.isActive = isActive === "true";
+  applyIsActiveFilter(filter, isActive);
   if (category) filter.category = category;
   if (lowStock) filter.$expr = { $lte: ["$currentQuantity", "$minQuantity"] };
   if (search) filter.name = { $regex: search, $options: "i" };

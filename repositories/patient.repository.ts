@@ -1,7 +1,7 @@
 import connectDB from "@/lib/db/mongoose";
 import { Patient, IPatient } from "@/models/clinical.model";
 import { FilterQuery, UpdateQuery } from "mongoose";
-import { buildPagination, Pagination } from "@/lib/utils";
+import { buildPagination, Pagination, applyPatientStatusFilter } from "@/lib/utils";
 
 export interface FindPatientsOptions {
   search?: string;
@@ -27,7 +27,7 @@ export class PatientRepository {
     } = opts;
 
     const filter: FilterQuery<IPatient> = {};
-    if (status) filter.status = status;
+    applyPatientStatusFilter(filter as Record<string, unknown>, status || null);
     if (bloodGroup) filter.bloodGroup = bloodGroup;
     if (search) {
       filter.$or = [
@@ -52,7 +52,9 @@ export class PatientRepository {
 
   static async findById(id: string): Promise<IPatient | null> {
     await connectDB();
-    return Patient.findById(id).populate("registeredBy", "firstName lastName email").lean() as Promise<IPatient | null>;
+    const patient = await Patient.findById(id).populate("registeredBy", "firstName lastName email").lean() as IPatient | null;
+    if (patient && patient.status === "archived") return null;
+    return patient;
   }
 
   static async findByPatientId(patientId: string): Promise<IPatient | null> {

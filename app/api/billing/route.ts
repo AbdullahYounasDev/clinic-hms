@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Invoice, LabTest } from "@/models/operations.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyInvoiceStatusFilter } from "@/lib/utils";
 import { createInvoiceSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const patientId = sp.get("patient") || "";
 
   const filter: Record<string, unknown> = {};
-  if (status) filter.status = status;
+  applyInvoiceStatusFilter(filter, status || null);
   if (patientId) filter.patient = patientId;
 
   const [invoices, total] = await Promise.all([

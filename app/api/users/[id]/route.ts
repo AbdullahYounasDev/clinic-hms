@@ -157,12 +157,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (doctor) {
       // If user is suspended or inactive, set doctor unavailable
       if (body.status === "suspended" || body.status === "inactive" || body.status === "locked") {
-        await Doctor.findByIdAndUpdate(doctor._id, { isAvailable: false });
+        await Doctor.findByIdAndUpdate(doctor._id, { isAvailable: false, status: "archived" });
         console.log(`Doctor ${doctor._id} set to unavailable due to user status: ${body.status}`);
       }
       // If user is active, set doctor available
       else if (body.status === "active") {
-        await Doctor.findByIdAndUpdate(doctor._id, { isAvailable: true });
+        await Doctor.findByIdAndUpdate(doctor._id, { isAvailable: true, status: "active" });
         console.log(`Doctor ${doctor._id} set to available due to user active`);
       }
     }

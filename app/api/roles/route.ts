@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest) {
 
   await connectDB();
 
-  const roles = await Role.find({})
+  const roles = await Role.find({ isActive: true })
     .populate("permissions")
     .sort({ createdAt: 1 })
     .lean();

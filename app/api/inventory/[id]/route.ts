@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { InventoryItem } from "@/models/operations.model";
-import { apiSuccess, apiError, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getIpFromHeaders, isInactiveRecord } from "@/lib/utils";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { z } from "zod";
 
@@ -35,6 +35,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         .lean();
 
     if (!item) return apiError("Inventory item not found", 404);
+    if (isInactiveRecord(item)) return apiError("Inventory item not found", 404);
     return apiSuccess(item);
 }
 
@@ -105,15 +106,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const item = await InventoryItem.findById(id);
     if (!item) return apiError("Inventory item not found", 404);
+    if (isInactiveRecord(item)) return apiError("Inventory item not found", 404);
 
     const itemName = item.name;
-    await InventoryItem.findByIdAndDelete(id);
+    await InventoryItem.findByIdAndUpdate(id, { isActive: false });
 
     await auditLog({
         userId: session.user.id,
         action: "delete",
         module: "inventory",
-        description: `Deleted inventory: ${itemName}`,
+        description: `Archived inventory: ${itemName}`,
         resourceId: id,
         resourceType: "InventoryItem",
         ipAddress: getIpFromHeaders(req.headers),

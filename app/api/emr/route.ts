@@ -21,12 +21,12 @@ export async function GET(req: NextRequest) {
   const fromDate = sp.get("fromDate") || "";
   const toDate = sp.get("toDate") || "";
 
-  const filter: Record<string, unknown> = {};
+  const filter: Record<string, unknown> = { status: { $ne: "archived" } };
 
   // Doctor scope: only show their own EMR records
   if (!session.user.isSuperAdmin) {
     const { Doctor } = await import("@/models/clinical.model");
-    const doctor = await Doctor.findOne({ user: session.user.id }).lean();
+    const doctor = await Doctor.findOne({ user: session.user.id, status: { $ne: "archived" } }).lean();
     if (doctor) {
       filter.doctor = doctor._id;
     }
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Find doctor by user ID
-  const doctor = await Doctor.findOne({ user: session.user.id });
+  const doctor = await Doctor.findOne({ user: session.user.id, status: "active" });
   if (!doctor) {
     return apiError("Doctor profile not found for this user", 404);
   }

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Prescription, Doctor, EMR } from "@/models/clinical.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyPrescriptionStatusFilter } from "@/lib/utils";
 import { createPrescriptionSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import mongoose from "mongoose";
@@ -19,8 +19,11 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const { page, limit, skip } = getPaginationParams(sp);
   const patient = sp.get("patient") || "";
+  const status = sp.get("status") || "";
   const filter: Record<string, unknown> = {};
   if (patient) filter.patient = patient;
+  if (status) filter.status = status;
+  else applyPrescriptionStatusFilter(filter, null);
   const [prescriptions, total] = await Promise.all([
     Prescription.find(filter)
       .skip(skip)

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { User } from "@/models/user.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, applyUserStatusFilter } from "@/lib/utils";
 import { hasPermission } from "@/lib/auth/audit";
 
 export async function GET(req: NextRequest) {
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const department = sp.get("department") || "";
 
   const filter: Record<string, unknown> = {};
-  if (status) filter.status = status;
+  applyUserStatusFilter(filter, status || null);
   if (department) filter.department = department;
   if (search) {
     filter.$or = [

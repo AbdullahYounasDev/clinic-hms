@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Report, LabTest, LabCatalog } from "@/models/operations.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyLabTestStatusFilter } from "@/lib/utils";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { z } from "zod";
 import { createLabTestSchema } from "@/lib/validations";
@@ -27,13 +27,18 @@ export async function GET(req: NextRequest) {
     filter.requestedBy = session.user.id;
   }
 
-  if (status) filter.status = status;
+  if (status) {
+    filter.status = status;
+  } else {
+    applyLabTestStatusFilter(filter, null);
+  }
   if (patientId) filter.patient = patientId;
 
   // Search by patient name or ID
   if (search) {
     const { Patient } = await import("@/models/clinical.model");
     const patientIds = await Patient.find({
+      status: "active",
       $or: [
         { firstName: { $regex: search, $options: "i" } },
         { lastName: { $regex: search, $options: "i" } },

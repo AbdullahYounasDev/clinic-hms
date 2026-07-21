@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Patient } from "@/models/clinical.model";
-import { apiSuccess, apiError, getIpFromHeaders, sanitizeForLog } from "@/lib/utils";
+import { apiSuccess, apiError, getIpFromHeaders, sanitizeForLog, isArchivedPatient } from "@/lib/utils";
 import { updatePatientSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
@@ -23,6 +23,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .lean();
 
   if (!patient) return apiError("Patient not found", 404);
+  if (isArchivedPatient(patient.status)) return apiError("Patient not found", 404);
 
   return apiSuccess(patient);
 }
@@ -43,6 +44,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   const existing = await Patient.findById(id).lean();
   if (!existing) return apiError("Patient not found", 404);
+  if (isArchivedPatient(existing.status)) return apiError("Patient not found", 404);
 
   const updated = await Patient.findByIdAndUpdate(id, parsed.data, { new: true }).lean();
 

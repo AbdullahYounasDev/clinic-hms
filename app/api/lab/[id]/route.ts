@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { LabCatalog, LabTest } from "@/models/operations.model";
-import { apiSuccess, apiError, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getIpFromHeaders, isInactiveRecord } from "@/lib/utils";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { NotificationService } from "@/services/notification.service";
 import { updateLabTestResultsSchema } from "@/lib/validations";
@@ -29,6 +29,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .lean();
 
   if (!test) return apiError("Lab test not found", 404);
+  if (test.status === "cancelled") return apiError("Lab test not found", 404);
   return apiSuccess(test);
 }
 
@@ -199,13 +200,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
 
   const testId = test.labTestId;
-  await LabTest.findByIdAndDelete(id);
+  await LabTest.findByIdAndUpdate(id, { status: "cancelled" });
 
   await auditLog({
     userId: session.user.id,
     action: "delete",
     module: "lab",
-    description: `Deleted lab test order ${testId}`,
+    description: `Archived lab test order ${testId}`,
     resourceId: id,
     resourceType: "LabTest",
     ipAddress: getIpFromHeaders(req.headers),

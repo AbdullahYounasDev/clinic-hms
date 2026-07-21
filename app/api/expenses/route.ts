@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   const filter: Record<string, unknown> = {};
   if (category) filter.category = category;
-  if (status) filter.status = status;
+  if (status && status !== "archived") filter.status = status;
   if (!status) filter.status = "approved";
   if (search) filter.title = { $regex: search, $options: "i" };
   if (from || to) {

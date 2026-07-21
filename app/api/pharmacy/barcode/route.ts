@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     const parsed = barcodeQuerySchema.safeParse({ barcode: sp.get("barcode") });
     if (!parsed.success) return apiError(parsed.error.issues[0].message, 422);
 
-    const medicine = await Medicine.findOne({ barcode: parsed.data.barcode })
+    const medicine = await Medicine.findOne({ barcode: parsed.data.barcode, isActive: true })
         .populate("supplier", "name contactPerson phone email")
         .lean();
 

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Role } from "@/models/user.model";
-import { apiSuccess, apiError, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getIpFromHeaders, isInactiveRecord } from "@/lib/utils";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
 interface Params { params: Promise<{ id: string }> }
@@ -15,6 +15,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const role = await Role.findById(id).populate("permissions").lean();
   if (!role) return apiError("Role not found", 404);
+  if (isInactiveRecord(role)) return apiError("Role not found", 404);
   return apiSuccess(role);
 }
 
@@ -49,7 +50,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { User } = await import("@/models/user.model");
   const usersWithRole = await User.countDocuments({ role: id });
   if (usersWithRole > 0) return apiError(`Cannot delete: ${usersWithRole} user(s) are assigned this role`, 400);
-  await Role.findByIdAndDelete(id);
-  await auditLog({ userId: session.user.id, action: "delete", module: "roles", description: `Deleted role: ${role.name}`, resourceId: id, ipAddress: getIpFromHeaders(req.headers) });
+  await Role.findByIdAndUpdate(id, { isActive: false });
+  await auditLog({ userId: session.user.id, action: "delete", module: "roles", description: `Archived role: ${role.name}`, resourceId: id, ipAddress: getIpFromHeaders(req.headers) });
   return apiSuccess(null, "Role deleted successfully");
 }

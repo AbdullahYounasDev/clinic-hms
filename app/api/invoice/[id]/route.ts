@@ -27,6 +27,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         .lean();
 
     if (!invoice) return apiError("Invoice not found", 404);
+    if (invoice.status === "cancelled" || invoice.status === "refunded") return apiError("Invoice not found", 404);
     return apiSuccess(invoice);
 }
 
@@ -130,27 +131,28 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const invoice = await Invoice.findById(id);
     if (!invoice) return apiError("Invoice not found", 404);
+    if (invoice.status === "paid") return apiError("Cannot delete a paid invoice", 400);
+    if (invoice.status === "cancelled" || invoice.status === "refunded") return apiError("Invoice not found", 404);
 
-    // RESTORE STOCK FOR MEDICINE ITEMS BEFORE DELETING
+    // RESTORE STOCK FOR MEDICINE ITEMS BEFORE CANCELLING
     if (invoice.items && invoice.items.length > 0) {
         for (const item of invoice.items) {
-            // Only restore stock for medicine items
             if (item.medicine && item.category === "medicine") {
                 await Medicine.findByIdAndUpdate(item.medicine, {
-                    $inc: { currentStock: item.quantity } // Add back the quantity
+                    $inc: { currentStock: item.quantity }
                 });
             }
         }
     }
 
     const invoiceNumber = invoice.invoiceNumber;
-    await Invoice.findByIdAndDelete(id);
+    await Invoice.findByIdAndUpdate(id, { status: "cancelled" });
 
     await auditLog({
         userId: session.user.id,
         action: "delete",
         module: "billing",
-        description: `Deleted invoice: ${invoiceNumber} (stock restored for medicine items)`,
+        description: `Cancelled invoice: ${invoiceNumber} (stock restored for medicine items)`,
         resourceId: id,
         resourceType: "Invoice",
         ipAddress: getIpFromHeaders(req.headers),

@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
   if (search) {
     const { Patient } = await import("@/models/clinical.model");
     const patientIds = await Patient.find({
+      status: "active",
       $or: [
         { firstName: { $regex: search, $options: "i" } },
         { lastName: { $regex: search, $options: "i" } },
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest) {
     }).distinct("_id");
 
     const { Doctor } = await import("@/models/clinical.model");
-    const doctorIds = await Doctor.find({ user: { $in: userIds } }).distinct("_id");
+    const doctorIds = await Doctor.find({ user: { $in: userIds }, status: { $ne: "archived" } }).distinct("_id");
 
     filter.$or = [
       { patient: { $in: patientIds } },

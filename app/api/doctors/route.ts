@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Doctor } from "@/models/clinical.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, applyRecordStatusFilter } from "@/lib/utils";
 import { hasPermission } from "@/lib/auth/audit";
 
 export async function GET(req: NextRequest) {
@@ -19,8 +19,10 @@ export async function GET(req: NextRequest) {
   const search = sp.get("search") || "";
   const departmentId = sp.get("department") || "";
   const isAvailable = sp.get("isAvailable");
+  const status = sp.get("status") || "";
 
   const filter: Record<string, unknown> = {};
+  applyRecordStatusFilter(filter, status || null);
 
   // Department filter
   if (departmentId) filter.department = departmentId;
@@ -34,6 +36,7 @@ export async function GET(req: NextRequest) {
   if (search) {
     const { User } = await import("@/models/user.model");
     const userIds = await User.find({
+      status: "active",
       $or: [
         { firstName: { $regex: search, $options: "i" } },
         { lastName: { $regex: search, $options: "i" } },

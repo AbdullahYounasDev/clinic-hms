@@ -209,3 +209,15 @@ export function getMissingLabTestResults(
 
   return tests.filter((test) => !isLabResultComplete(findLabResultForTest(test, results)));
 }
+
+export {
+  applyPatientStatusFilter,
+  applyUserStatusFilter,
+  applyIsActiveFilter,
+  applyRecordStatusFilter,
+  applyInvoiceStatusFilter,
+  applyLabTestStatusFilter,
+  applyPrescriptionStatusFilter,
+  isArchivedPatient,
+  isInactiveRecord,
+} from "./soft-delete";
