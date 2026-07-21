@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/db/mongoose";
 import { User } from "@/models/user.model";
+import { auditLog } from "@/lib/auth/audit";
 
 function extractPermissions(role: unknown): string[] {
   const roleRecord = role as Record<string, unknown> | null | undefined;
@@ -88,6 +89,29 @@ export const authOptions = {
       },
     }),
   ],
+  events: {
+    async signIn({ user }: { user: { id?: string; email?: string | null } }) {
+      if (!user.id) return;
+      await auditLog({
+        userId: user.id,
+        action: "login",
+        module: "auth",
+        description: `User logged in${user.email ? `: ${user.email}` : ""}`,
+        status: "success",
+      });
+    },
+    async signOut({ token }: { token?: Record<string, unknown> }) {
+      const userId = token?.id as string | undefined;
+      if (!userId) return;
+      await auditLog({
+        userId,
+        action: "logout",
+        module: "auth",
+        description: "User logged out",
+        status: "success",
+      });
+    },
+  },
   callbacks: {
     async jwt({ token, user, trigger }: { token: Record<string, unknown>; user?: Record<string, unknown>; trigger?: string }) {
       if (user) {
