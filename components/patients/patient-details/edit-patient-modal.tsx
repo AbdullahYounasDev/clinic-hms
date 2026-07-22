@@ -1,11 +1,15 @@
 // components/patients/patient-details/edit-patient-modal.tsx
+"use client";
+
 import { Modal, FormField, Input, Select, Button, Alert } from "@/components/ui";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { updatePatientSchema, UpdatePatientInput } from "@/lib/validations";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 export function EditPatientModal({ open, onClose, patient, onUpdate, isPending, error }: any) {
+    const [showPortalPassword, setShowPortalPassword] = useState(false);
     const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<UpdatePatientInput>({
         resolver: zodResolver(updatePatientSchema),
     });
@@ -15,6 +19,7 @@ export function EditPatientModal({ open, onClose, patient, onUpdate, isPending, 
 
     useEffect(() => {
         if (open && patient) {
+            setShowPortalPassword(false);
             reset({
                 firstName: patient.firstName,
                 lastName: patient.lastName,
@@ -153,6 +158,44 @@ export function EditPatientModal({ open, onClose, patient, onUpdate, isPending, 
                         <FormField label="Policy Number"><Input {...register("insuranceDetails.policyNumber")} /></FormField>
                         <FormField label="Expiry Date"><Input type="date" {...register("insuranceDetails.expiryDate")} /></FormField>
                         <FormField label="Coverage Details"><Input {...register("insuranceDetails.coverageDetails")} /></FormField>
+                    </div>
+                </div>
+
+                <div className="border-t border-gray-200 pt-4">
+                    <h4 className="text-xs font-semibold text-gray-900 mb-1">Patient Portal Access</h4>
+                    <p className="text-xs text-gray-500 mb-3">
+                        {patient?.portalEnabled
+                            ? "Portal is enabled. Set a new password to reset access — patient must change it on next login."
+                            : "Set email + password to enable portal login for this patient."}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormField label="New Portal Password" error={errors.portalPassword?.message}>
+                            <div className="relative">
+                                <Input
+                                    type={showPortalPassword ? "text" : "password"}
+                                    {...register("portalPassword")}
+                                    placeholder="Min. 8 characters (optional)"
+                                    autoComplete="new-password"
+                                    className="pr-10"
+                                    error={!!errors.portalPassword}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPortalPassword(!showPortalPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                    tabIndex={-1}
+                                >
+                                    {showPortalPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                        </FormField>
+                        <FormField label="Portal Status">
+                            <Input
+                                value={patient?.portalEnabled ? "Enabled" : "Disabled"}
+                                disabled
+                                readOnly
+                            />
+                        </FormField>
                     </div>
                 </div>
 

@@ -5,6 +5,7 @@ import { Patient } from "@/models/clinical.model";
 import { apiSuccess, apiError, getIpFromHeaders, sanitizeForLog, isArchivedPatient } from "@/lib/utils";
 import { updatePatientSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
+import { resolvePatientPortalFields } from "@/lib/patient-portal-fields";
 
 interface Params { params: Promise<{ id: string }> }
 
@@ -46,7 +47,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (!existing) return apiError("Patient not found", 404);
   if (isArchivedPatient(existing.status)) return apiError("Patient not found", 404);
 
-  const updated = await Patient.findByIdAndUpdate(id, parsed.data, { new: true }).lean();
+  const resolved = await resolvePatientPortalFields(parsed.data as Record<string, unknown>, id);
+  if (resolved.error) return apiError(resolved.error, 422);
+
+  const updated = await Patient.findByIdAndUpdate(id, resolved.data, { new: true }).lean();
 
   await auditLog({
     userId: session.user.id,

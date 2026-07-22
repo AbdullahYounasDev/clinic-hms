@@ -1,6 +1,13 @@
 import { z } from "zod";
 
 // ─── AUTH SCHEMAS ─────────────────────────────────────────
+export const patientLoginSchema = z.object({
+  login: z.string().min(3, "Email or phone number is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export type PatientLoginInput = z.infer<typeof patientLoginSchema>;
+
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
@@ -99,6 +106,8 @@ export const createPatientSchema = z.object({
       coverageDetails: z.string().optional(),
     })
     .optional(),
+  /** Staff-assigned portal password; patient must change on first login */
+  portalPassword: z.string().min(8, "Password must be at least 8 characters").optional(),
 });
 
 export const updatePatientSchema = z.object({
@@ -134,6 +143,8 @@ export const updatePatientSchema = z.object({
   dateOfDeath: z.string().optional(),
   causeOfDeath: z.string().optional(),
   status: z.enum(["active", "archived", "deceased"]).default("active"),
+  portalPassword: z.string().min(8, "Password must be at least 8 characters").optional(),
+  portalEnabled: z.boolean().optional(),
 }).partial();
 
 export type UpdatePatientInput = z.infer<typeof updatePatientSchema>;

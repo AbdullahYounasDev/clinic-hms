@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { Plus, TrendingDown, Filter, ChevronDown, X, Image as ImageIcon } from "lucide-react";
+import { Plus, TrendingDown, Filter, ChevronDown, X, Image as ImageIcon, Trash2 } from "lucide-react";
 import {
   Card, CardBody, Table, Th, Td, Button, Modal,
   FormField, Input, Select, EmptyState, Pagination, Badge, Alert, StatCard, StatusBadge,
@@ -39,10 +39,12 @@ export function ExpensesClient() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   const isSA = session?.user.isSuperAdmin;
   const perms = session?.user.permissions || [];
   const canCreate = isSA || perms.includes("expenses:create");
+  const canDelete = isSA || perms.includes("expenses:delete");
 
   const activeFiltersCount = [category, status].filter(Boolean).length;
 
@@ -91,6 +93,16 @@ export function ExpensesClient() {
       setCreateError(msg);
       toast.error(msg);
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/expenses/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("Expense deleted!");
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,9 +295,16 @@ export function ExpensesClient() {
                   <Td><StatusBadge status={e.status} /></Td>
                   <Td className="text-gray-400">{formatDate(e.date)}</Td>
                   <Td>
-                    <Button size="sm" onClick={() => router.push(`/expenses/${e._id}`)}>
-                      View
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" onClick={() => router.push(`/expenses/${e._id}`)}>
+                        View
+                      </Button>
+                      {canDelete && (
+                        <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: e._id, label: e.title })}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </Td>
                 </tr>
               ))
@@ -335,9 +354,16 @@ export function ExpensesClient() {
                   <span className="text-xs text-gray-500 capitalize">{e.category}</span>
                 </div>
               </div>
-              <Button size="sm" onClick={() => router.push(`/expenses/${e._id}`)}>
-                View
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button size="sm" onClick={() => router.push(`/expenses/${e._id}`)}>
+                  View
+                </Button>
+                {canDelete && (
+                  <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: e._id, label: e.title })}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -463,6 +489,22 @@ export function ExpensesClient() {
             <Button type="submit" loading={createMutation.isPending}>Record Expense</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Expense" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

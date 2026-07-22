@@ -1,12 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/offline", "/clinic-bg.jpg", "logo.png"];
+const PUBLIC_ROUTES = [
+  "/login",
+  "/patient/login",
+  "/forgot-password",
+  "/reset-password",
+  "/offline",
+  "/clinic-bg.jpg",
+  "logo.png",
+];
 const PUBLIC_API_ROUTES = ["/api/auth"];
-const PASSWORD_CHANGE_ALLOWED_API_PREFIXES = ["/api/profile/"];
+const STAFF_PASSWORD_CHANGE_ALLOWED_API_PREFIXES = ["/api/profile/"];
+const PATIENT_PASSWORD_CHANGE_ALLOWED_API_PREFIXES = ["/api/portal/change-password"];
 
-function isPasswordChangeAllowedApi(pathname: string) {
-  return PASSWORD_CHANGE_ALLOWED_API_PREFIXES.some((route) => pathname.startsWith(route));
+const STAFF_ONLY_ROUTE_PREFIXES = [
+  "/dashboard",
+  "/patients",
+  "/appointments",
+  "/doctors",
+  "/billing",
+  "/lab",
+  "/labcatalog",
+  "/pharmacy",
+  "/supplier",
+  "/inventory",
+  "/staff",
+  "/reports",
+  "/users",
+  "/roles",
+  "/audit-logs",
+  "/expenses",
+  "/opd",
+  "/settings",
+  "/profile",
+  "/ai-assistant",
+];
+
+function isStaffPasswordChangeAllowedApi(pathname: string) {
+  return STAFF_PASSWORD_CHANGE_ALLOWED_API_PREFIXES.some((route) => pathname.startsWith(route));
+}
+
+function isPatientPasswordChangeAllowedApi(pathname: string) {
+  return PATIENT_PASSWORD_CHANGE_ALLOWED_API_PREFIXES.some((route) => pathname.startsWith(route));
 }
 
 async function getSessionToken(req: NextRequest) {
@@ -15,6 +51,14 @@ async function getSessionToken(req: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET!,
     secureCookie: process.env.NODE_ENV === "production",
   });
+}
+
+function redirectToLogin(req: NextRequest, pathname: string, error?: string) {
+  const isPatientPath = pathname.startsWith("/portal") || pathname.startsWith("/patient");
+  const loginUrl = new URL(isPatientPath ? "/patient/login" : "/login", req.url);
+  loginUrl.searchParams.set("callbackUrl", pathname);
+  if (error) loginUrl.searchParams.set("error", error);
+  return NextResponse.redirect(loginUrl);
 }
 
 export async function proxy(req: NextRequest) {
@@ -26,22 +70,68 @@ export async function proxy(req: NextRequest) {
 
   if (PUBLIC_ROUTES.some((r) => pathname.startsWith(r))) {
     const token = await getSessionToken(req);
-    if (token) return NextResponse.redirect(new URL("/dashboard", req.url));
+    if (token) {
+      const home = token.accountType === "patient" ? "/portal" : "/dashboard";
+      return NextResponse.redirect(new URL(home, req.url));
+    }
     return NextResponse.next();
   }
 
   const token = await getSessionToken(req);
 
   if (!token) {
-    const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
+    return redirectToLogin(req, pathname);
   }
 
+  const accountType = (token.accountType as string) || "staff";
+
   if (token.status && token.status !== "active") {
-    const url = new URL("/login", req.url);
-    url.searchParams.set("error", "account_inactive");
-    return NextResponse.redirect(url);
+    return redirectToLogin(req, pathname, "account_inactive");
+  }
+
+  // ─── Patient portal session ─────────────────────────────
+  if (accountType === "patient") {
+    if (
+      pathname.startsWith("/portal") === false &&
+      pathname.startsWith("/api/portal") === false &&
+      !pathname.startsWith("/api/auth")
+    ) {
+      return NextResponse.redirect(new URL("/portal", req.url));
+    }
+
+    if (
+      token.mustChangePassword &&
+      !pathname.startsWith("/portal/change-password") &&
+      !pathname.startsWith("/api/portal/change-password") &&
+      !pathname.startsWith("/api/auth")
+    ) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { success: false, error: "Password change required before accessing this resource" },
+          { status: 403 }
+        );
+      }
+      return NextResponse.redirect(new URL("/portal/change-password", req.url));
+    }
+
+    if (
+      token.mustChangePassword &&
+      pathname.startsWith("/api/") &&
+      !isPatientPasswordChangeAllowedApi(pathname) &&
+      !pathname.startsWith("/api/auth")
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Password change required before accessing this resource" },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.next();
+  }
+
+  // ─── Staff session — block patient portal ───────────────
+  if (pathname.startsWith("/portal") || pathname.startsWith("/api/portal")) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
   if (
@@ -55,7 +145,7 @@ export async function proxy(req: NextRequest) {
   if (
     token.mustChangePassword &&
     pathname.startsWith("/api/") &&
-    !isPasswordChangeAllowedApi(pathname)
+    !isStaffPasswordChangeAllowedApi(pathname)
   ) {
     return NextResponse.json(
       { success: false, error: "Password change required before accessing this resource" },
@@ -75,7 +165,7 @@ export async function proxy(req: NextRequest) {
       "/lab": "lab:view",
       "/labcatalog": "labcatalog:view",
       "/pharmacy": "pharmacy:view",
-      "/suppliers": "suppliers:view",
+      "/supplier": "suppliers:view",
       "/inventory": "inventory:view",
       "/staff": "staff:view",
       "/reports": "reports:view",
@@ -85,6 +175,7 @@ export async function proxy(req: NextRequest) {
       "/expenses": "expenses:view",
       "/opd": "emr:view",
       "/settings": "settings:view",
+      "/ai-assistant": "reports:view",
     };
 
     for (const [route, perm] of Object.entries(ROUTE_PERMISSIONS)) {

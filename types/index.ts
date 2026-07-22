@@ -114,6 +114,10 @@ export interface Patient {
   status: PatientStatus;
   notes?: string;
   registeredBy: string | User;
+  portalEnabled?: boolean;
+  mustChangePassword?: boolean;
+  passwordChangedAt?: Date;
+  lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -218,6 +222,8 @@ export interface Appointment {
   completedAt?: Date;
   consultationFee: number;
   isPaid: boolean;
+  queueNumber?: number;
+  queueDate?: Date;
   createdBy: string | User;
   createdAt: Date;
   updatedAt: Date;

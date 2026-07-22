@@ -1,6 +1,6 @@
 // components/patients/patient-details/patient-header.tsx
 import { Card, CardBody, StatusBadge, Badge, Button } from "@/components/ui";
-import { Phone, Mail, MapPin, Edit2, ArrowLeft } from "lucide-react";
+import { Phone, Mail, MapPin, Edit2, ArrowLeft, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
@@ -8,11 +8,22 @@ interface Patient {
     _id: string; patientId: string; firstName: string; lastName: string;
     gender: string; dateOfBirth: string; phone: string;
     email?: string; bloodGroup?: string; status: string; photo?: string;
+    portalEnabled?: boolean;
     address?: { street?: string; city?: string; state?: string; country?: string };
     createdAt: string;
 }
 
-export function PatientHeader({ p, onEdit }: { p: Patient; onEdit: () => void }) {
+export function PatientHeader({
+    p,
+    onEdit,
+    canDelete,
+    onDelete,
+}: {
+    p: Patient;
+    onEdit: () => void;
+    canDelete?: boolean;
+    onDelete?: () => void;
+}) {
     const router = useRouter();
 
     return (
@@ -24,9 +35,16 @@ export function PatientHeader({ p, onEdit }: { p: Patient; onEdit: () => void })
                 >
                     <ArrowLeft className="w-4 h-4" />
                 </button>
-                <Button variant="secondary" size="sm" onClick={onEdit}>
-                    <Edit2 className="w-3.5 h-3.5" /> Edit
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button variant="secondary" size="sm" onClick={onEdit}>
+                        <Edit2 className="w-3.5 h-3.5" /> Edit
+                    </Button>
+                    {canDelete && onDelete && p.status === "active" && (
+                        <Button variant="danger" size="sm" onClick={onDelete}>
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                        </Button>
+                    )}
+                </div>
             </div>
 
             <Card>
@@ -44,6 +62,7 @@ export function PatientHeader({ p, onEdit }: { p: Patient; onEdit: () => void })
                                 <h1 className="text-lg font-semibold text-gray-900">{p.firstName} {p.lastName}</h1>
                                 <span className="text-xs text-gray-400">{p.patientId}</span>
                                 <StatusBadge status={p.status} />
+                                {p.portalEnabled && <Badge variant="success">Portal</Badge>}
                             </div>
                             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-500">
                                 <span className="capitalize">{p.gender}</span>

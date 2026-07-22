@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
-import { Search, Plus, Filter, ChevronDown, X } from "lucide-react";
+import { Search, Plus, Filter, ChevronDown, X, Trash2, Eye, EyeOff } from "lucide-react";
 import {
   Card, Table, Th, Td, StatusBadge,
   Button, Modal, FormField, Input, Select, EmptyState,
@@ -43,10 +43,13 @@ export function PatientsClient() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
+  const [showPortalPassword, setShowPortalPassword] = useState(false);
 
   const perms = session?.user.permissions || [];
   const isSA = session?.user.isSuperAdmin;
   const canCreate = isSA || perms.includes("patients:create");
+  const canDelete = isSA || perms.includes("patients:delete");
 
   const activeFiltersCount = [statusFilter].filter(Boolean).length;
 
@@ -86,6 +89,7 @@ export function PatientsClient() {
       setCreateOpen(false);
       reset();
       setCreateError("");
+      setShowPortalPassword(false);
       toast.success("Patient created successfully!");
     },
     onError: (e: unknown) => {
@@ -93,6 +97,16 @@ export function PatientsClient() {
       setCreateError(msg);
       toast.error(msg);
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/patients/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["patients"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("Patient deleted!");
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
   });
 
   return (
@@ -238,9 +252,16 @@ export function PatientsClient() {
                   <Td><StatusBadge status={p.status} /></Td>
                   <Td className="text-gray-400">{formatDate(p.createdAt)}</Td>
                   <Td>
-                    <Link href={`/patients/${p._id}`}>
-                      <Button size="sm">View</Button>
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link href={`/patients/${p._id}`}>
+                        <Button size="sm">View</Button>
+                      </Link>
+                      {canDelete && p.status === "active" && (
+                        <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: p._id, label: p.patientId })}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </Td>
                 </tr>
               ))
@@ -292,9 +313,16 @@ export function PatientsClient() {
                   <span className="text-xs text-gray-500">{p.phone}</span>
                 </div>
               </div>
-              <Link href={`/patients/${p._id}`}>
-                <Button size="sm">View</Button>
-              </Link>
+              <div className="flex items-center gap-1">
+                <Link href={`/patients/${p._id}`}>
+                  <Button size="sm">View</Button>
+                </Link>
+                {canDelete && p.status === "active" && (
+                  <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: p._id, label: p.patientId })}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -306,7 +334,7 @@ export function PatientsClient() {
       </div>
 
       {/* Create Patient Modal */}
-      <Modal open={createOpen} onClose={() => { setCreateOpen(false); reset(); setCreateError(""); }} title="New Patient" size="lg">
+      <Modal open={createOpen} onClose={() => { setCreateOpen(false); reset(); setCreateError(""); setShowPortalPassword(false); }} title="New Patient" size="lg">
         {createError && <Alert type="error">{createError}</Alert>}
         <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="space-y-4 mt-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -426,6 +454,34 @@ export function PatientsClient() {
             </div>
           </div>
 
+          {/* Portal access */}
+          <div className="border-t border-gray-200 pt-4">
+            <h4 className="text-xs font-semibold text-gray-900 mb-1">Patient Portal (optional)</h4>
+            <p className="text-xs text-gray-500 mb-3">If set, the patient can log in and must change this password on first login.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Portal Password" error={errors.portalPassword?.message}>
+                <div className="relative">
+                  <Input
+                    type={showPortalPassword ? "text" : "password"}
+                    {...register("portalPassword")}
+                    placeholder="Min. 8 characters"
+                    autoComplete="new-password"
+                    className="pr-10"
+                    error={!!errors.portalPassword}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPortalPassword(!showPortalPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    tabIndex={-1}
+                  >
+                    {showPortalPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </FormField>
+            </div>
+          </div>
+
           {/* Notes */}
           <FormField label="Notes">
             <textarea
@@ -437,12 +493,28 @@ export function PatientsClient() {
           </FormField>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
-            <Button type="button" variant="secondary" onClick={() => { setCreateOpen(false); reset(); setCreateError(""); }}>
+            <Button type="button" variant="secondary" onClick={() => { setCreateOpen(false); reset(); setCreateError(""); setShowPortalPassword(false); }}>
               Cancel
             </Button>
             <Button type="submit" loading={createMutation.isPending}>Create Patient</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Patient" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

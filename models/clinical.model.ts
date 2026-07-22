@@ -64,6 +64,13 @@ export interface IPatient extends Document {
   status: string;
   notes?: string;
   registeredBy: mongoose.Types.ObjectId;
+  /** Portal login — separate from staff User model */
+  password?: string;
+  portalEnabled: boolean;
+  mustChangePassword: boolean;
+  passwordChangedAt?: Date;
+  lastLogin?: Date;
+  lastLoginIp?: string;
   get fullName(): string;
   dateOfDeath: Date;
   causeOfDeath: String;
@@ -97,6 +104,12 @@ const PatientSchema = new Schema<IPatient>(
     status: { type: String, enum: ["active", "archived", "deceased"], default: "active", index: true },
     notes: { type: String },
     registeredBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    password: { type: String, select: false },
+    portalEnabled: { type: Boolean, default: false, index: true },
+    mustChangePassword: { type: Boolean, default: false },
+    passwordChangedAt: { type: Date },
+    lastLogin: { type: Date },
+    lastLoginIp: { type: String },
     dateOfDeath: { type: Date },
     causeOfDeath: { type: String }
   },
@@ -118,6 +131,7 @@ PatientSchema.virtual("age").get(function () {
 });
 
 PatientSchema.index({ firstName: "text", lastName: "text", phone: "text", patientId: "text" });
+PatientSchema.index({ email: 1 }, { unique: true, sparse: true });
 PatientSchema.set("toJSON", { virtuals: true });
 PatientSchema.set("toObject", { virtuals: true });
 
@@ -190,6 +204,9 @@ export interface IAppointment extends Document {
   completedAt?: Date;
   consultationFee: number;
   isPaid: boolean;
+  /** Queue token for live OPD/waiting-room displays (future real-time) */
+  queueNumber?: number;
+  queueDate?: Date;
   createdBy: mongoose.Types.ObjectId;
 }
 
@@ -216,6 +233,8 @@ const AppointmentSchema = new Schema<IAppointment>(
     completedAt: { type: Date },
     consultationFee: { type: Number, default: 0 },
     isPaid: { type: Boolean, default: false },
+    queueNumber: { type: Number, index: true },
+    queueDate: { type: Date, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: true }

@@ -43,6 +43,7 @@ export function RolesClient() {
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
   const [createError, setCreateError] = useState("");
   const [viewRole, setViewRole] = useState<Role | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   const isSA = session?.user.isSuperAdmin;
   const perms = session?.user.permissions || [];
@@ -80,7 +81,11 @@ export function RolesClient() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => axios.delete(`/api/roles/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["roles"] }); toast.success("Role deleted!"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["roles"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("Role deleted!");
+    },
     onError: (e: unknown) => toast.error((e as any)?.response?.data?.error || "Failed"),
   });
 
@@ -122,7 +127,7 @@ export function RolesClient() {
                     {!role.isSystem && (
                       <>
                         {canEdit && <button onClick={() => openEdit(role)} className="p-1.5 rounded-lg text-gray-400 cursor-pointer"><Edit2 className="w-3.5 h-3.5" /></button>}
-                        {canDelete && <button onClick={() => { if (confirm(`Delete "${role.name}"?`)) deleteMutation.mutate(role._id); }} className="p-1.5 rounded-lg text-gray-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>}
+                        {canDelete && <button onClick={() => setDeleteConfirm({ open: true, id: role._id, label: role.name })} className="p-1.5 rounded-lg text-gray-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>}
                       </>
                     )}
                   </div>
@@ -242,6 +247,22 @@ export function RolesClient() {
             <Button type="submit" loading={createMutation.isPending} disabled={editRole?.isSystem}>{editRole ? "Save Changes" : "Create Role"}</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Role" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

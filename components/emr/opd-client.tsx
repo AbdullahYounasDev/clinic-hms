@@ -33,6 +33,7 @@ export function OPDClient() {
   const [search, setSearch] = useState("");
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const [symptomInput, setSymptomInput] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
   const searchParams = useSearchParams();
   const urlAppointmentId = searchParams.get("appointmentId");
   const urlPatientId = searchParams.get("patientId");
@@ -40,6 +41,7 @@ export function OPDClient() {
   const isSA = session?.user.isSuperAdmin;
   const perms = session?.user.permissions || [];
   const canCreate = isSA || perms.includes("emr:create");
+  const canDelete = isSA || perms.includes("emr:delete");
 
   const { data, isLoading } = useQuery({
     queryKey: ["emr-records", page],
@@ -96,6 +98,16 @@ export function OPDClient() {
       setCreateError(msg);
       toast.error(msg);
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/emr/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["emr-records"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("EMR record deleted!");
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
   });
 
   const onSubmit = (d: Record<string, unknown>) => {
@@ -187,9 +199,16 @@ export function OPDClient() {
                   </Td>
                   <Td className="text-gray-500">{r.followUpDate ? formatDate(r.followUpDate) : "—"}</Td>
                   <Td>
-                    <Link href={`/opd/${r._id}`}>
-                      <Button size="sm">View</Button>
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link href={`/opd/${r._id}`}>
+                        <Button size="sm">View</Button>
+                      </Link>
+                      {canDelete && (
+                        <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: r._id, label: `${r.patient?.firstName} ${r.patient?.lastName}` })}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </Td>
                 </tr>
               ))
@@ -241,9 +260,16 @@ export function OPDClient() {
                   Dr. {r.doctor?.user?.firstName} {r.doctor?.user?.lastName} • {formatDate(r.visitDate)}
                 </div>
               </div>
-              <Link href={`/opd/${r._id}`}>
-                <Button size="sm">View</Button>
-              </Link>
+              <div className="flex items-center gap-1">
+                <Link href={`/opd/${r._id}`}>
+                  <Button size="sm">View</Button>
+                </Link>
+                {canDelete && (
+                  <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: r._id, label: `${r.patient?.firstName} ${r.patient?.lastName}` })}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -465,6 +491,22 @@ export function OPDClient() {
             <Button type="submit" loading={createMutation.isPending}>Save Visit Record</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete EMR Record" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete the visit record for <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

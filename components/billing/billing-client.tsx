@@ -2,16 +2,17 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { Plus, Search, DollarSign, FileText, Filter, ChevronDown, X } from "lucide-react";
+import { Plus, Search, DollarSign, FileText, Filter, ChevronDown, X, Trash2 } from "lucide-react";
 import {
   Card, Table, Th, Td, StatusBadge,
-  Button, Select, EmptyState, Pagination, StatCard, Badge,
+  Button, Select, EmptyState, Pagination, StatCard, Badge, Modal,
 } from "@/components/ui";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 
 interface Invoice {
   _id: string;
@@ -29,16 +30,21 @@ interface Invoice {
 
 export function BillingClient() {
   const { data: session } = useSession();
+  const qc = useQueryClient();
   const router = useRouter();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   const perms = session?.user.permissions || [];
   const isSA = session?.user.isSuperAdmin;
   const canCreate = isSA || perms.includes("billing:create");
+  const canDelete = isSA || perms.includes("billing:delete");
+
+  const canDeleteInvoice = (status: string) => status !== "paid" && status !== "cancelled" && status !== "refunded";
 
   const activeFiltersCount = [statusFilter, typeFilter].filter(Boolean).length;
 
@@ -66,6 +72,16 @@ export function BillingClient() {
     };
     return labels[type] || type;
   };
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/invoice/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("Invoice deleted!");
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
+  });
 
   return (
     <div className="space-y-4">
@@ -252,12 +268,23 @@ export function BillingClient() {
                   <Td><StatusBadge status={inv.status} /></Td>
                   <Td className="text-gray-400">{formatDate(inv.createdAt)}</Td>
                   <Td>
-                    <Button
-                      size="sm"
-                      onClick={(e) => { e.stopPropagation(); router.push(`/billing/${inv._id}`); }}
-                    >
-                      View
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); router.push(`/billing/${inv._id}`); }}
+                      >
+                        View
+                      </Button>
+                      {canDelete && canDeleteInvoice(inv.status) && (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ open: true, id: inv._id, label: inv.invoiceNumber }); }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </Td>
                 </tr>
               ))
@@ -315,12 +342,23 @@ export function BillingClient() {
                   <span className="text-xs font-medium text-gray-700">{formatCurrency(inv.total)}</span>
                 </div>
               </div>
-              <Button
-                size="sm"
-                onClick={(e) => { e.stopPropagation(); router.push(`/billing/${inv._id}`); }}
-              >
-                View
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); router.push(`/billing/${inv._id}`); }}
+                >
+                  View
+                </Button>
+                {canDelete && canDeleteInvoice(inv.status) && (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ open: true, id: inv._id, label: inv.invoiceNumber }); }}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -330,6 +368,22 @@ export function BillingClient() {
           </div>
         )}
       </div>
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Invoice" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

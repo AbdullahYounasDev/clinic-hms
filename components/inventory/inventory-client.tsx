@@ -6,13 +6,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { Plus, Search, AlertTriangle, Eye, Box } from "lucide-react";
+import { Plus, Search, AlertTriangle, Eye, Box, Trash2 } from "lucide-react";
 import {
   Card, CardBody, Table, Th, Td, Button, Modal,
   FormField, Input, Select, EmptyState, Pagination, Badge, Alert, StatCard,
 } from "@/components/ui";
 import { useSession } from "next-auth/react";
 import { z } from "zod";
+import { toast } from "sonner";
 
 const createInventorySchema = z.object({
   name: z.string().min(1),
@@ -45,10 +46,12 @@ export function InventoryClient() {
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   const isSA = session?.user.isSuperAdmin;
   const perms = session?.user.permissions || [];
   const canCreate = isSA || perms.includes("inventory:create");
+  const canDelete = isSA || perms.includes("inventory:delete");
 
   const { data, isLoading } = useQuery({
     queryKey: ["inventory", page, search, category, lowStockOnly],
@@ -75,6 +78,16 @@ export function InventoryClient() {
     mutationFn: (d: CreateInventoryInput) => axios.post("/api/inventory", d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["inventory"] }); setCreateOpen(false); reset(); setCreateError(""); },
     onError: (e: unknown) => setCreateError((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/inventory/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("Inventory item deleted!");
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
   });
 
   return (
@@ -141,9 +154,16 @@ export function InventoryClient() {
                   <Td>PKR {item.unitCost?.toLocaleString()}</Td>
                   <Td className="text-slate-400">{item.location || "—"}</Td>
                   <Td>
-                    <button onClick={() => router.push(`/inventory/${item._id}`)} className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-all">
-                      <Eye className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => router.push(`/inventory/${item._id}`)} className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-all">
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      {canDelete && item.isActive && (
+                        <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: item._id, label: item.name })}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </Td>
                 </tr>
               );
@@ -209,6 +229,22 @@ export function InventoryClient() {
             <Button type="submit" loading={createMutation.isPending}>Add Item</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Inventory Item" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

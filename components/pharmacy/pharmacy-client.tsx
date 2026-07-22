@@ -2,17 +2,18 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { Plus, Search, AlertTriangle, Filter, ChevronDown, X, Package, Layers } from "lucide-react";
+import { Plus, Search, AlertTriangle, Filter, ChevronDown, X, Package, Layers, Trash2 } from "lucide-react";
 import {
   Card, Table, Th, Td, Button,
-  EmptyState, Pagination, Badge, StatCard, Select
+  EmptyState, Pagination, Badge, StatCard, Select, Modal,
 } from "@/components/ui";
 import { formatDate, cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 import { MedicineCreateModal } from "@/components/pharmacy/create-medicine-modal";
+import { toast } from "sonner";
 
 interface Medicine {
   _id: string; name: string; genericName: string; category: string;
@@ -27,6 +28,7 @@ const CATEGORIES = [
 
 export function PharmacyClient() {
   const { data: session } = useSession();
+  const qc = useQueryClient();
   const router = useRouter();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -34,10 +36,12 @@ export function PharmacyClient() {
   const [category, setCategory] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   const isSA = session?.user.isSuperAdmin;
   const perms = session?.user.permissions || [];
   const canCreate = isSA || perms.includes("pharmacy:create");
+  const canDelete = isSA || perms.includes("pharmacy:delete");
 
   const activeFiltersCount = [lowStockOnly, category].filter(Boolean).length;
 
@@ -58,6 +62,16 @@ export function PharmacyClient() {
   const medicines: Medicine[] = data?.data || [];
   const pagination = data?.pagination;
   const lowStockCount = medicines.filter(m => m.currentStock <= m.minStockLevel).length;
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/pharmacy/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["medicines"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("Medicine deleted!");
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
+  });
 
   return (
     <div className="space-y-4">
@@ -246,9 +260,16 @@ export function PharmacyClient() {
                       ) : <span className="text-gray-300">—</span>}
                     </Td>
                     <Td>
-                      <Button size="sm" onClick={() => router.push(`/pharmacy/${m._id}`)}>
-                        View
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" onClick={() => router.push(`/pharmacy/${m._id}`)}>
+                          View
+                        </Button>
+                        {canDelete && m.isActive && (
+                          <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: m._id, label: m.name })}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </Td>
                   </tr>
                 );
@@ -327,9 +348,16 @@ export function PharmacyClient() {
                       ) : <span className="text-gray-300">—</span>}
                     </Td>
                     <Td>
-                      <Button size="sm" onClick={() => router.push(`/pharmacy/${m._id}`)}>
-                        View
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" onClick={() => router.push(`/pharmacy/${m._id}`)}>
+                          View
+                        </Button>
+                        {canDelete && m.isActive && (
+                          <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: m._id, label: m.name })}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </Td>
                   </tr>
                 );
@@ -377,9 +405,16 @@ export function PharmacyClient() {
                   </span>
                   {isLow && <Badge variant="warning">Low</Badge>}
                 </div>
-                <Button size="sm" onClick={() => router.push(`/pharmacy/${m._id}`)}>
-                  View
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button size="sm" onClick={() => router.push(`/pharmacy/${m._id}`)}>
+                    View
+                  </Button>
+                  {canDelete && m.isActive && (
+                    <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: m._id, label: m.name })}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })
@@ -392,6 +427,22 @@ export function PharmacyClient() {
       </div>
 
       <MedicineCreateModal open={createOpen} onClose={() => setCreateOpen(false)} />
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Medicine" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

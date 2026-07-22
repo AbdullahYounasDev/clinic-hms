@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Building2, User, X, Filter, ChevronDown } from "lucide-react";
+import { Plus, Search, Building2, User, X, Filter, ChevronDown, Trash2 } from "lucide-react";
 import {
     Card, CardBody, Table, Th, Td, Button, Modal,
     FormField, Input, Select, EmptyState, Pagination, Badge, Alert,
@@ -34,6 +34,7 @@ export function SuppliersClient() {
     const [createError, setCreateError] = useState("");
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
     const categoryOptions = [
         "Antibiotics", "Analgesics", "Antihypertensives", "Antidiabetics",
@@ -44,6 +45,7 @@ export function SuppliersClient() {
     const isSA = session?.user.isSuperAdmin;
     const perms = session?.user.permissions || [];
     const canCreate = isSA || perms.includes("pharmacy:create");
+    const canDelete = isSA || perms.includes("pharmacy:delete");
 
     const activeFiltersCount = [typeFilter, isActiveFilter].filter(Boolean).length;
 
@@ -83,6 +85,16 @@ export function SuppliersClient() {
             setCreateError((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed");
             toast.error("Failed to add supplier.");
         },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: (id: string) => axios.delete(`/api/supplier/${id}`),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["suppliers"] });
+            setDeleteConfirm({ open: false, id: "", label: "" });
+            toast.success("Supplier deleted!");
+        },
+        onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
     });
 
     return (
@@ -269,12 +281,19 @@ export function SuppliersClient() {
                                         </Badge>
                                     </Td>
                                     <Td>
-                                        <Button
-                                            size="sm"
-                                            onClick={() => router.push(`/supplier/${s._id}`)}
-                                        >
-                                            View
-                                        </Button>
+                                        <div className="flex items-center gap-1">
+                                            <Button
+                                                size="sm"
+                                                onClick={() => router.push(`/supplier/${s._id}`)}
+                                            >
+                                                View
+                                            </Button>
+                                            {canDelete && s.isActive && (
+                                                <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: s._id, label: s.name })}>
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </Button>
+                                            )}
+                                        </div>
                                     </Td>
                                 </tr>
                             ))
@@ -321,9 +340,16 @@ export function SuppliersClient() {
                                     {s.phone}{s.contactPerson ? ` • ${s.contactPerson}` : ""}
                                 </p>
                             </div>
-                            <Button size="sm" onClick={() => router.push(`/supplier/${s._id}`)}>
-                                View
-                            </Button>
+                            <div className="flex items-center gap-1">
+                                <Button size="sm" onClick={() => router.push(`/supplier/${s._id}`)}>
+                                    View
+                                </Button>
+                                {canDelete && s.isActive && (
+                                    <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: s._id, label: s.name })}>
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     ))
                 )}
@@ -464,6 +490,22 @@ export function SuppliersClient() {
                         <Button type="submit" loading={createMutation.isPending}>Add Supplier</Button>
                     </div>
                 </form>
+            </Modal>
+
+            <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Supplier" size="sm">
+                <div className="space-y-4 mt-2">
+                    <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                        <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+                            <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+                        <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+                        <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

@@ -14,11 +14,12 @@ import { PrescriptionsTab } from "@/components/patients/patient-details/prescrip
 import { BillingTab } from "@/components/patients/patient-details/billing-tab";
 import { DocumentsTab } from "@/components/patients/patient-details/documents-tab";
 import { EditPatientModal } from "@/components/patients/patient-details/edit-patient-modal";
-import { Skeleton, Alert } from "@/components/ui";
+import { Skeleton, Alert, Button, Modal } from "@/components/ui";
 import { DeceasedBanner } from "./patient-details/deceased-banner";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Trash2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 const TABS = ["Overview", "Appointments", "Lab Tests", "Prescriptions", "Billing", "Documents"];
 
@@ -26,10 +27,16 @@ export function PatientDetailClient({ patientId }: { patientId: string }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const qc = useQueryClient();
+  const { data: session } = useSession();
   const [tab, setTab] = useState("Overview");
   const [editOpen, setEditOpen] = useState(searchParams.get("edit") === "true");
   const [editError, setEditError] = useState("");
   const [mobileTabOpen, setMobileTabOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const isSA = session?.user.isSuperAdmin;
+  const perms = session?.user.permissions || [];
+  const canDelete = isSA || perms.includes("patients:delete");
 
   const { data: patientData, isLoading, error } = useQuery({
     queryKey: ["patient", patientId],
@@ -52,6 +59,16 @@ export function PatientDetailClient({ patientId }: { patientId: string }) {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => axios.delete(`/api/patients/${patientId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["patients"] });
+      toast.success("Patient deleted!");
+      router.push("/patients");
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || "Failed to delete"),
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -68,7 +85,12 @@ export function PatientDetailClient({ patientId }: { patientId: string }) {
 
   return (
     <div className="space-y-4">
-      <PatientHeader p={p} onEdit={() => setEditOpen(true)} />
+      <PatientHeader
+        p={p}
+        onEdit={() => setEditOpen(true)}
+        canDelete={canDelete}
+        onDelete={() => setDeleteConfirmOpen(true)}
+      />
 
       {/* Desktop Tabs */}
       <div className="hidden md:flex gap-2 border-b border-gray-300">
@@ -155,6 +177,22 @@ export function PatientDetailClient({ patientId }: { patientId: string }) {
         isPending={updateMutation.isPending}
         error={editError}
       />
+
+      <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Delete Patient" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{p.patientId}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>Delete Permanently</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

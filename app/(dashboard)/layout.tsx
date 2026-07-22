@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { SearchPalette } from "@/components/shared/search-palette";
+import { isPatientSession } from "@/lib/auth/session-helpers";
 
 export default async function DashboardLayout({
   children,
@@ -11,6 +12,7 @@ export default async function DashboardLayout({
 }) {
   const session = await auth();
   if (!session) redirect("/login");
+  if (isPatientSession(session)) redirect("/portal");
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">

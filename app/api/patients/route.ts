@@ -5,6 +5,7 @@ import { Patient } from "@/models/clinical.model";
 import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyPatientStatusFilter, isArchivedPatient } from "@/lib/utils";
 import { createPatientSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
+import { resolvePatientPortalFields } from "@/lib/patient-portal-fields";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -65,13 +66,17 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
+  const { portalPassword, ...patientFields } = parsed.data;
+  const resolved = await resolvePatientPortalFields({
+    ...patientFields,
+    ...(portalPassword ? { portalPassword } : {}),
+  });
+  if (resolved.error) return apiError(resolved.error, 422);
 
-  console.log("Creating patient with data:", parsed.data);
   const patient = await Patient.create({
-    ...parsed.data,
+    ...resolved.data,
     registeredBy: session.user.id,
   });
-  console.log("Created patient insurance:", patient.insuranceDetails);
 
   await auditLog({
     userId: session.user.id,

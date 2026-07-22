@@ -6,10 +6,15 @@ declare module "next-auth" {
       id: string;
       email: string;
       fullName: string;
-      role: string;
-      roleSlug: string;
-      permissions: string[];
-      isSuperAdmin: boolean;
+      accountType: "staff" | "patient";
+      /** Staff-only */
+      role?: string;
+      roleSlug?: string;
+      permissions?: string[];
+      isSuperAdmin?: boolean;
+      /** Patient-only */
+      patientDisplayId?: string;
+      phone?: string;
       avatar?: string;
       status: string;
       mustChangePassword: boolean;
@@ -18,10 +23,13 @@ declare module "next-auth" {
   interface JWT {
     id: string;
     fullName: string;
-    role: string;
-    roleSlug: string;
-    permissions: string[];
-    isSuperAdmin: boolean;
+    accountType: "staff" | "patient";
+    role?: string;
+    roleSlug?: string;
+    permissions?: string[];
+    isSuperAdmin?: boolean;
+    patientDisplayId?: string;
+    phone?: string;
     avatar?: string;
     status: string;
     mustChangePassword: boolean;

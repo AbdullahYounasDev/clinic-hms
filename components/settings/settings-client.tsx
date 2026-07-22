@@ -6,9 +6,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import axios from "axios";
 import {
-  Card, CardBody, Button, FormField, Input, Select, Alert, Badge,
+  Card, CardBody, Button, FormField, Input, Select, Alert, Badge, Modal,
 } from "@/components/ui";
-import { Building2, Plus, Settings } from "lucide-react";
+import { Building2, Plus, Settings, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ export function SettingsClient() {
   const [saveError, setSaveError] = useState("");
   const [newDept, setNewDept] = useState({ name: "", code: "", description: "" });
   const [deptError, setDeptError] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   const isSA = session?.user.isSuperAdmin;
   const perms = session?.user.permissions || [];
@@ -61,6 +62,16 @@ export function SettingsClient() {
     mutationFn: (d: typeof newDept) => axios.post("/api/settings/departments", d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["departments"] }); setNewDept({ name: "", code: "", description: "" }); setDeptError(""); toast.success("Department added!"); },
     onError: (e: unknown) => { const msg = (e as any)?.response?.data?.error || "Failed"; setDeptError(msg); toast.error(msg); },
+  });
+
+  const deleteDeptMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/settings/departments/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["departments"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("Department deleted!");
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
   });
 
   return (
@@ -144,6 +155,15 @@ export function SettingsClient() {
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge variant="outline">{d.code}</Badge>
                         <Badge variant={d.isActive ? "success" : "default"}>{d.isActive ? "Active" : "Inactive"}</Badge>
+                        {canEdit && d.isActive && (
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => setDeleteConfirm({ open: true, id: d._id, label: `${d.name} (${d.code})` })}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -170,6 +190,22 @@ export function SettingsClient() {
           )}
         </div>
       )}
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Department" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteDeptMutation.isPending} onClick={() => deleteDeptMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

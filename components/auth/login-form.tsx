@@ -10,6 +10,7 @@ import { Eye, EyeOff, Loader2, Hospital, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import Image from "next/image";
+import Link from "next/link";
 import { NEXT_PUBLIC_CLINIC_NAME, NEXT_PUBLIC_CLINIC_TAGLINE, NEXT_PUBLIC_LOGO_URL } from "@/constants/ClinicDetails";
 
 const rotatingTexts = [
@@ -345,7 +346,12 @@ export function LoginForm() {
                 )}
               </button>
             </form>
-          </div>
+
+          <p className="text-center text-xs text-gray-500 mt-5">
+            Patient?{" "}
+            <Link href="/patient/login" className="text-teal-600 font-medium">Patient portal login</Link>
+          </p>
+        </div>
 
           {/* Footer - Mobile/Tablet */}
           <p className="text-center text-gray-400 text-xs mt-6">
