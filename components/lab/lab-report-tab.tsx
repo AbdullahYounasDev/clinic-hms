@@ -5,12 +5,13 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import axios from "axios";
-import { AlertTriangle, Save, Printer, Pencil, Download } from "lucide-react";
+import { AlertTriangle, Save, Printer, Pencil, Download, Trash2 } from "lucide-react";
 import { Card, CardBody, Badge, Button, Alert, FormField, Input, Modal } from "@/components/ui";
 import { formatDate, cn, getMissingLabTestResults } from "@/lib/utils";
 import { toast } from "sonner";
 import { generateLabReportPrintHtml, LabReportPdfTemplate } from "../printTemplates/lab-report-print-template";
 import { pdf } from "@react-pdf/renderer";
+import { useSession } from "next-auth/react";
 
 interface LabTestDetail {
     _id: string; labTestId: string;
@@ -54,10 +55,16 @@ const formatValue = (value: any) => {
 };
 
 export function LabReportTab({ test, id }: LabReportTabProps) {
+    const { data: session } = useSession();
     const qc = useQueryClient();
     const [error, setError] = useState("");
     const [editModalOpen, setEditModalOpen] = useState(false);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [isPdfLoading, setIsPdfLoading] = useState(false);
+
+    const isSA = session?.user?.isSuperAdmin;
+    const perms = session?.user?.permissions || [];
+    const canDelete = isSA || perms.includes("lab:delete");
 
     const missingResults = getMissingLabTestResults(test.tests, test.results);
 
@@ -92,6 +99,16 @@ export function LabReportTab({ test, id }: LabReportTabProps) {
             axios.put(`/api/patientReports/${existingReport?._id}`, d),
         onSuccess: () => { qc.invalidateQueries({ queryKey: ["report", id] }); toast.success("Report updated!"); setEditModalOpen(false); },
         onError: (e: unknown) => { setError((e as any)?.response?.data?.error || "Failed"); toast.error("Failed"); },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: () => axios.delete(`/api/patientReports/${existingReport?._id}`),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["report", id] });
+            setDeleteConfirmOpen(false);
+            toast.success("Report deleted!");
+        },
+        onError: (e: unknown) => toast.error((e as any)?.response?.data?.error || "Failed to delete"),
     });
 
     const onSubmit = (data: { technicianName: string; technicianSignature: string; additionalNotes: string }) => {
@@ -154,6 +171,11 @@ export function LabReportTab({ test, id }: LabReportTabProps) {
                                 <Button size="sm" variant="secondary" onClick={openEditModal}><Pencil className="w-3.5 h-3.5" /> Edit</Button>
                                 <Button size="sm" variant="secondary" onClick={handlePrint}><Printer className="w-3.5 h-3.5" /> Print</Button>
                                 <Button size="sm" variant="secondary" onClick={handleDownloadPdf} loading={isPdfLoading}><Download className="w-3.5 h-3.5" /> PDF</Button>
+                                {canDelete && (
+                                    <Button size="sm" variant="danger" onClick={() => setDeleteConfirmOpen(true)}>
+                                        <Trash2 className="w-3.5 h-3.5" /> Delete
+                                    </Button>
+                                )}
                             </div>
                         </div>
 
@@ -243,6 +265,22 @@ export function LabReportTab({ test, id }: LabReportTabProps) {
                     <FormField label="Additional Notes"><Input {...register("additionalNotes")} placeholder="Any observations..." /></FormField>
                     <div className="flex justify-end gap-2 pt-2 border-t border-gray-300"><Button variant="secondary" onClick={() => setEditModalOpen(false)}>Cancel</Button><Button type="submit" loading={updateMutation.isPending}><Save className="w-3.5 h-3.5" /> Update</Button></div>
                 </form>
+            </Modal>
+
+            <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Delete Report" size="sm">
+                <div className="space-y-4 mt-2">
+                    <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                        <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+                            <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{existingReport?.reportId}</strong>.</p>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+                        <Button variant="secondary" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+                        <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>Delete Permanently</Button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

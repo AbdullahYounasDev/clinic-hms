@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Appointment } from "@/models/clinical.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, startOfDay, endOfDay } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, startOfDay, endOfDay, applyAppointmentStatusFilter, isArchivedStatus } from "@/lib/utils";
 import { createAppointmentSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { NotificationService } from "@/services/notification.service";
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   const today = sp.get("today") === "true";
   const search = sp.get("search") || "";
 
-  if (status) filter.status = { $in: status.split(",") };
+  applyAppointmentStatusFilter(filter, status || null);
   if (patientId) filter.patient = patientId;
 
   if (today) {
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
     doctor: parsed.data.doctor,
     scheduledDate: new Date(parsed.data.scheduledDate),
     scheduledTime: parsed.data.scheduledTime,
-    status: { $nin: ["cancelled", "no_show"] },
+    status: { $nin: ["cancelled", "no_show", "archived"] },
   });
 
   if (conflict) {

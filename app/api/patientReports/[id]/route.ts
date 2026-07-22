@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Report } from "@/models/operations.model";
-import { apiSuccess, apiError, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getIpFromHeaders, isArchivedStatus } from "@/lib/utils";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
 interface Params { params: Promise<{ id: string }> }
@@ -21,6 +21,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         .lean();
 
     if (!report) return apiError("Report not found", 404);
+    if (isArchivedStatus(report.status)) return apiError("Report not found", 404);
     return apiSuccess(report);
 }
 
@@ -32,6 +33,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const body = await req.json();
     await connectDB();
     const { id } = await params;
+
+    const existing = await Report.findById(id).lean();
+    if (!existing) return apiError("Report not found", 404);
+    if (isArchivedStatus(existing.status)) return apiError("Report not found", 404);
 
     const update: Record<string, unknown> = {};
     if (body.status) update.status = body.status;
@@ -58,4 +63,33 @@ export async function PUT(req: NextRequest, { params }: Params) {
     });
 
     return apiSuccess(report, "Report updated");
+}
+
+export async function DELETE(req: NextRequest, { params }: Params) {
+    const session = await auth();
+    if (!session) return apiError("Unauthorized", 401);
+    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "lab", "delete")) {
+        return apiError("Forbidden", 403);
+    }
+
+    await connectDB();
+    const { id } = await params;
+
+    const existing = await Report.findById(id).lean();
+    if (!existing) return apiError("Report not found", 404);
+    if (isArchivedStatus(existing.status)) return apiError("Report not found", 404);
+
+    await Report.findByIdAndUpdate(id, { status: "archived" });
+
+    await auditLog({
+        userId: session.user.id,
+        action: "delete",
+        module: "reports",
+        description: `Archived report ${existing.reportId}`,
+        resourceId: id,
+        resourceType: "Report",
+        ipAddress: getIpFromHeaders(req.headers),
+    });
+
+    return apiSuccess(null, "Report deleted successfully");
 }

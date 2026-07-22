@@ -56,12 +56,12 @@ export async function GET(_req: NextRequest) {
       ? Appointment.countDocuments({
         ...doctorFilter,
         scheduledDate: { $gte: todayStart, $lte: todayEnd },
-        status: { $nin: ["cancelled", "no_show"] },
+        status: { $nin: ["cancelled", "no_show", "archived"] },
       })
       : Promise.resolve(null),
 
     perms.includes("doctors:view") || isSuperAdmin
-      ? Doctor.countDocuments({ isAvailable: true })
+      ? Doctor.countDocuments({ isAvailable: true, status: { $ne: "archived" } })
       : Promise.resolve(null),
 
     perms.includes("billing:view") || isSuperAdmin
@@ -82,7 +82,7 @@ export async function GET(_req: NextRequest) {
 
     perms.includes("appointments:view") || isSuperAdmin
       ? Appointment.aggregate([
-        { $match: doctorFilter },
+        { $match: { ...doctorFilter, status: { $ne: "archived" } } },
         {
           $group: {
             _id: "$status",

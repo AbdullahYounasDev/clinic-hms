@@ -547,7 +547,7 @@ export interface IReport extends Document {
     signature: string;
   };
   additionalNotes?: string;
-  status: "draft" | "final";
+  status: "draft" | "final" | "archived";
   reportUrl?: string;
   createdBy: mongoose.Types.ObjectId;
 }
@@ -577,7 +577,7 @@ const ReportSchema = new Schema<IReport>(
       signature: { type: String, required: true },
     },
     additionalNotes: { type: String },
-    status: { type: String, enum: ["draft", "final"], default: "draft" },
+    status: { type: String, enum: ["draft", "final", "archived"], default: "draft" },
     reportUrl: { type: String },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },

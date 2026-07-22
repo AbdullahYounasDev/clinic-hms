@@ -64,7 +64,10 @@ export async function GET(req: NextRequest) {
     }
 
     case "appointments": {
-      const appointments = await Appointment.find({ scheduledDate: { $gte: from, $lte: to } })
+      const appointments = await Appointment.find({
+        scheduledDate: { $gte: from, $lte: to },
+        status: { $ne: "archived" },
+      })
         .populate("patient", "firstName lastName patientId")
         .populate({ path: "doctor", populate: { path: "user", select: "firstName lastName" } })
         .lean();

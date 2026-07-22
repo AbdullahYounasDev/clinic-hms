@@ -48,7 +48,7 @@ export interface Role {
 }
 
 // ─── USERS ────────────────────────────────────────────────
-export type UserStatus = "active" | "inactive" | "suspended" | "locked";
+export type UserStatus = "active" | "inactive" | "suspended" | "locked" | "archived";
 
 export interface User {
   _id: string;
@@ -195,7 +195,8 @@ export type AppointmentStatus =
   | "in_consultation"
   | "completed"
   | "cancelled"
-  | "no_show";
+  | "no_show"
+  | "archived";
 
 export type AppointmentType = "opd" | "follow_up" | "emergency" | "teleconsultation";
 

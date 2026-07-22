@@ -215,9 +215,12 @@ export {
   applyUserStatusFilter,
   applyIsActiveFilter,
   applyRecordStatusFilter,
+  applyAppointmentStatusFilter,
+  applyReportStatusFilter,
   applyInvoiceStatusFilter,
   applyLabTestStatusFilter,
   applyPrescriptionStatusFilter,
   isArchivedPatient,
+  isArchivedStatus,
   isInactiveRecord,
 } from "./soft-delete";

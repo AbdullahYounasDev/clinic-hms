@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
-import { Plus, Search, Filter, ChevronDown, X } from "lucide-react";
+import { Plus, Search, Filter, ChevronDown, X, Trash2 } from "lucide-react";
 import {
   Card, Table, Th, Td, StatusBadge, Button,
   Modal, FormField, Input, Select, EmptyState, Pagination, Alert,
@@ -48,10 +48,12 @@ export function AppointmentsClient() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   const perms = session?.user.permissions || [];
   const isSA = session?.user.isSuperAdmin;
   const canCreate = isSA || perms.includes("appointments:create");
+  const canDelete = isSA || perms.includes("appointments:delete");
 
   const activeFiltersCount = [statusFilter, dateFilter].filter(Boolean).length;
 
@@ -103,6 +105,16 @@ export function AppointmentsClient() {
       setCreateError(msg);
       toast.error(msg);
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/appointments/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["appointments"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("Appointment deleted!");
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
   });
 
   return (
@@ -275,9 +287,16 @@ export function AppointmentsClient() {
                   <Td><StatusBadge status={a.status} /></Td>
                   <Td className="text-gray-600">PKR {a.consultationFee?.toLocaleString()}</Td>
                   <Td>
-                    <Link href={`/appointments/${a._id}`}>
-                      <Button size="sm">View</Button>
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link href={`/appointments/${a._id}`}>
+                        <Button size="sm">View</Button>
+                      </Link>
+                      {canDelete && (
+                        <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: a._id, label: a.appointmentId })}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </Td>
                 </tr>
               ))
@@ -332,9 +351,16 @@ export function AppointmentsClient() {
                   {formatDate(a.scheduledDate)} • {a.scheduledTime}
                 </div>
               </div>
-              <Link href={`/appointments/${a._id}`}>
-                <Button size="sm">View</Button>
-              </Link>
+              <div className="flex items-center gap-1">
+                <Link href={`/appointments/${a._id}`}>
+                  <Button size="sm">View</Button>
+                </Link>
+                {canDelete && (
+                  <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: a._id, label: a.appointmentId })}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -416,6 +442,22 @@ export function AppointmentsClient() {
             <Button type="submit" loading={createMutation.isPending}>Book Appointment</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Appointment" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

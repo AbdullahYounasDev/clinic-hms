@@ -61,7 +61,7 @@ export const authOptions = {
           throw new Error("No account found with this email");
         }
 
-        if (user.status === "inactive" || user.status === "suspended") {
+        if (user.status === "inactive" || user.status === "suspended" || user.status === "archived") {
           throw new Error("Your account is not active. Contact admin.");
         }
 

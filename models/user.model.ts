@@ -52,7 +52,7 @@ export interface IUser extends Document {
   phone: string;
   avatar?: string;
   role: mongoose.Types.ObjectId;
-  status: "active" | "inactive" | "suspended" | "locked";
+  status: "active" | "inactive" | "suspended" | "locked" | "archived";
   isSuperAdmin: boolean;
   failedLoginAttempts: number;
   lockUntil?: Date;
@@ -82,7 +82,7 @@ const UserSchema = new Schema<IUser>(
     phone: { type: String, required: true },
     avatar: { type: String },
     role: { type: Schema.Types.ObjectId, ref: "Role", required: true },
-    status: { type: String, enum: ["active", "inactive", "suspended", "locked"], default: "active", index: true },
+    status: { type: String, enum: ["active", "inactive", "suspended", "locked", "archived"], default: "active", index: true },
     isSuperAdmin: { type: Boolean, default: false },
     failedLoginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date },

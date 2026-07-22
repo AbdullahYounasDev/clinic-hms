@@ -202,7 +202,7 @@ const AppointmentSchema = new Schema<IAppointment>(
     type: { type: String, enum: ["opd", "follow_up", "emergency", "teleconsultation"], default: "opd" },
     status: {
       type: String,
-      enum: ["scheduled", "checked_in", "in_consultation", "completed", "cancelled", "no_show"],
+      enum: ["scheduled", "checked_in", "in_consultation", "completed", "cancelled", "no_show", "archived"],
       default: "scheduled",
       index: true,
     },
@@ -322,7 +322,7 @@ export interface IPrescription extends Document {
     refillsRemaining?: number;
   }[];
   notes?: string;
-  status: "draft" | "active" | "dispensed" | "partially_dispensed" | "expired" | "cancelled" | "completed";
+  status: "draft" | "active" | "dispensed" | "partially_dispensed" | "expired" | "cancelled" | "completed" | "archived";
   type: "new" | "refill" | "renewal";
   duration: {
     value: number;
@@ -372,7 +372,7 @@ const PrescriptionSchema = new Schema<IPrescription>(
       },
     ],
     notes: String,
-    status: { type: String, enum: ["draft", "active", "dispensed", "partially_dispensed", "expired", "cancelled", "completed"], default: "active", index: true },
+    status: { type: String, enum: ["draft", "active", "dispensed", "partially_dispensed", "expired", "cancelled", "completed", "archived"], default: "active", index: true },
     type: { type: String, enum: ["new", "refill", "renewal"], default: "new" },
     duration: {
       value: { type: Number, required: true },

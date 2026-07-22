@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Report, LabTest } from "@/models/operations.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, getMissingLabTestResults } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, getMissingLabTestResults, applyReportStatusFilter, isArchivedStatus } from "@/lib/utils";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { z } from "zod";
 
@@ -26,9 +26,11 @@ export async function GET(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const { page, limit, skip } = getPaginationParams(sp);
     const labTestId = sp.get("labTestId") || sp.get("labTest") || "";
+    const status = sp.get("status") || "";
 
     const filter: Record<string, unknown> = {};
     if (labTestId) filter.labTest = labTestId;
+    applyReportStatusFilter(filter, status || null);
 
     const [reports, total] = await Promise.all([
         Report.find(filter).skip(skip).limit(limit).sort({ createdAt: -1 })

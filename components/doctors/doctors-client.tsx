@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import axios from "axios";
-import { Plus, Search, Filter, ChevronDown, X } from "lucide-react";
+import { Plus, Search, Filter, ChevronDown, X, Trash2 } from "lucide-react";
 import {
   Card, Table, Th, Td, Button, Modal,
   FormField, Input, Select, EmptyState, Pagination, Badge, Alert,
@@ -32,10 +32,12 @@ export function DoctorsClient() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   const isSA = session?.user.isSuperAdmin;
   const perms = session?.user.permissions || [];
   const canCreate = isSA || perms.includes("doctors:create");
+  const canDelete = isSA || perms.includes("doctors:delete");
 
   const activeFiltersCount = [departmentFilter, availabilityFilter].filter(Boolean).length;
 
@@ -88,6 +90,16 @@ export function DoctorsClient() {
       setCreateError(msg);
       toast.error(msg);
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/doctors/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["doctors"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("Doctor deleted!");
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
   });
 
   const onSubmit = (d: { user: string; specialization: string; department?: string; experience: number; consultationFee: number; qualifications: string; bio?: string }) => {
@@ -264,9 +276,16 @@ export function DoctorsClient() {
                     </div>
                   </Td>
                   <Td>
-                    <Link href={`/doctors/${d._id}`}>
-                      <Button size="sm">View</Button>
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link href={`/doctors/${d._id}`}>
+                        <Button size="sm">View</Button>
+                      </Link>
+                      {canDelete && (
+                        <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: d._id, label: `${d.doctorId} - Dr. ${d.user?.firstName} ${d.user?.lastName}` })}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </Td>
                 </tr>
               ))
@@ -320,9 +339,16 @@ export function DoctorsClient() {
                   <span className="text-xs text-gray-500">{d.experience} yrs</span>
                 </div>
               </div>
-              <Link href={`/doctors/${d._id}`}>
-                <Button size="sm">View</Button>
-              </Link>
+              <div className="flex items-center gap-1">
+                <Link href={`/doctors/${d._id}`}>
+                  <Button size="sm">View</Button>
+                </Link>
+                {canDelete && (
+                  <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: d._id, label: `${d.doctorId} - Dr. ${d.user?.firstName} ${d.user?.lastName}` })}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -384,6 +410,22 @@ export function DoctorsClient() {
             <Button type="submit" loading={createMutation.isPending} disabled={activeUsers.length === 0}>Add Doctor</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Doctor" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

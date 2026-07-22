@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
 
     // Get associated prescriptions
-    const prescriptions = await Prescription.find({ emr: id, status: { $ne: "cancelled" } })
+    const prescriptions = await Prescription.find({ emr: id, status: { $nin: ["cancelled", "archived"] } })
         .populate("patient", "firstName lastName patientId")
         .populate({ path: "doctor", populate: { path: "user", select: "firstName lastName" } })
         .lean();
@@ -116,7 +116,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     // ============ HANDLE PRESCRIPTIONS ============
     if (body.prescriptions !== undefined) {
-        await Prescription.updateMany({ emr: id, status: { $ne: "cancelled" } }, { status: "cancelled" });
+        await Prescription.updateMany({ emr: id, status: { $nin: ["cancelled", "archived"] } }, { status: "cancelled" });
 
         // Create new prescriptions if any
         if (body.prescriptions && body.prescriptions.length > 0) {
@@ -197,7 +197,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         return apiError("EMR record not found", 404);
     }
 
-    await Prescription.updateMany({ emr: id, status: { $ne: "cancelled" } }, { status: "cancelled" });
+    await Prescription.updateMany({ emr: id, status: { $nin: ["cancelled", "archived"] } }, { status: "archived" });
     await EMR.findByIdAndUpdate(id, { status: "archived" });
 
     await auditLog({

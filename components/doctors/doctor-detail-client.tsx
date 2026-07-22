@@ -6,10 +6,11 @@ import axios from "axios";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Mail, Phone, Calendar, Stethoscope, Award, Clock, DollarSign, Building, Edit2, User } from "lucide-react";
+import { ArrowLeft, Mail, Phone, Calendar, Stethoscope, Award, Clock, DollarSign, Building, Edit2, User, Trash2 } from "lucide-react";
 import { Card, CardBody, Badge, Button, Skeleton, Alert, Modal, FormField, Input, Select } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 
 interface Doctor {
     _id: string; doctorId: string;
@@ -38,10 +39,12 @@ export function DoctorDetailClient({ doctorId }: { doctorId: string }) {
     const [editOpen, setEditOpen] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
     const isSA = session?.user.isSuperAdmin;
     const perms = session?.user.permissions || [];
     const canUpdate = isSA || perms.includes("doctors:update");
+    const canDelete = isSA || perms.includes("doctors:delete");
 
     const { data, isLoading, error: queryError } = useQuery({
         queryKey: ["doctor", doctorId],
@@ -81,6 +84,20 @@ export function DoctorDetailClient({ doctorId }: { doctorId: string }) {
             setTimeout(() => setSuccess(""), 3000);
         },
         onError: (e: any) => setError(e?.response?.data?.error || "Failed to update"),
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: () => axios.delete(`/api/doctors/${doctorId}`),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["doctors"] });
+            toast.success("Doctor deleted!");
+            router.push("/doctors");
+        },
+        onError: (e: any) => {
+            const msg = e?.response?.data?.error || "Failed to delete";
+            setError(msg);
+            toast.error(msg);
+        },
     });
 
     const openEditModal = () => {
@@ -141,6 +158,11 @@ export function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                     {canUpdate && (
                         <Button variant="outline" size="sm" onClick={openEditModal}>
                             <Edit2 className="w-3.5 h-3.5" /> Edit
+                        </Button>
+                    )}
+                    {canDelete && (
+                        <Button variant="danger" size="sm" onClick={() => setDeleteConfirmOpen(true)}>
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
                         </Button>
                     )}
                 </div>
@@ -278,6 +300,22 @@ export function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                         <Button type="submit" loading={updateMutation.isPending}>Save Changes</Button>
                     </div>
                 </form>
+            </Modal>
+
+            <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Delete Doctor" size="sm">
+                <div className="space-y-4 mt-2">
+                    <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                        <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+                            <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>Dr. {d.user?.firstName} {d.user?.lastName}</strong> ({d.doctorId}).</p>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                        <Button type="button" variant="secondary" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+                        <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>Delete Permanently</Button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

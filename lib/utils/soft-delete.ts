@@ -54,16 +54,38 @@ export function applyLabTestStatusFilter(filter: QueryFilter, statusParam?: stri
   }
 }
 
-/** Prescriptions: hide cancelled unless ?status= passed */
+/** Appointments: hide archived unless ?status= passed */
+export function applyAppointmentStatusFilter(filter: QueryFilter, statusParam?: string | null) {
+  if (statusParam) {
+    filter.status = { $in: statusParam.split(",") };
+  } else {
+    filter.status = { $ne: "archived" };
+  }
+}
+
+/** Patient reports: hide archived unless ?status= passed */
+export function applyReportStatusFilter(filter: QueryFilter, statusParam?: string | null) {
+  if (statusParam) {
+    filter.status = statusParam;
+  } else {
+    filter.status = { $ne: "archived" };
+  }
+}
+
+/** Prescriptions: hide cancelled/archived unless ?status= passed */
 export function applyPrescriptionStatusFilter(filter: QueryFilter, statusParam?: string | null) {
   if (statusParam) {
     filter.status = statusParam;
   } else {
-    filter.status = { $ne: "cancelled" };
+    filter.status = { $nin: ["cancelled", "archived"] };
   }
 }
 
 export function isArchivedPatient(status?: string | null) {
+  return status === "archived";
+}
+
+export function isArchivedStatus(status?: string | null) {
   return status === "archived";
 }
 

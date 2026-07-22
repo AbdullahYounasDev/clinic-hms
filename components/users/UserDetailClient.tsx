@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import {
     ArrowLeft, Edit2, Key, RefreshCw, Eye, EyeOff,
-    Stethoscope, Clock, Mail, Phone,
+    Stethoscope, Clock, Mail, Phone, Trash2,
 } from "lucide-react";
 import {
     Card, CardBody, StatusBadge, Badge, Button,
@@ -45,9 +45,12 @@ export function UserDetailClient({ userId }: { userId: string }) {
     const [showPassword, setShowPassword] = useState(false);
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [resetPassword, setResetPassword] = useState("");
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
     const isSA = session?.user.isSuperAdmin;
     const isOwnProfile = session?.user.id === userId;
+    const perms = session?.user.permissions || [];
+    const canDelete = (isSA || perms.includes("users:delete")) && !isOwnProfile;
 
     const { data, isLoading, error: queryError } = useQuery({
         queryKey: ["user", userId],
@@ -96,6 +99,20 @@ export function UserDetailClient({ userId }: { userId: string }) {
             toast.success("Password reset successfully!");
         },
         onError: (e: any) => { const msg = e?.response?.data?.error || "Failed"; setError(msg); toast.error(msg); },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: () => axios.delete(`/api/users/${userId}`),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["users"] });
+            toast.success("User deleted!");
+            router.push("/users");
+        },
+        onError: (e: any) => {
+            const msg = e?.response?.data?.error || "Failed to delete";
+            setError(msg);
+            toast.error(msg);
+        },
     });
 
     const openEditModal = () => {
@@ -160,6 +177,11 @@ export function UserDetailClient({ userId }: { userId: string }) {
                     {(isSA || isOwnProfile) && (
                         <Button variant="secondary" size="sm" onClick={openEditModal}>
                             <Edit2 className="w-3.5 h-3.5" /> Edit
+                        </Button>
+                    )}
+                    {canDelete && !u.isSuperAdmin && (
+                        <Button variant="danger" size="sm" onClick={() => setDeleteConfirmOpen(true)}>
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
                         </Button>
                     )}
                 </div>
@@ -292,6 +314,22 @@ export function UserDetailClient({ userId }: { userId: string }) {
                     <div className="mt-4 flex justify-end"><Button onClick={() => setResetPassword("")}>Done</Button></div>
                 </Modal>
             )}
+
+            <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Delete User" size="sm">
+                <div className="space-y-4 mt-2">
+                    <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                        <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+                            <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{u.firstName} {u.lastName}</strong> ({u.email}).</p>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+                        <Button variant="secondary" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+                        <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>Delete Permanently</Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

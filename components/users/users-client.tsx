@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
-import { Plus, Search, Eye, EyeOff, Filter, ChevronDown, X } from "lucide-react";
+import { Plus, Search, Eye, EyeOff, Filter, ChevronDown, X, Trash2 } from "lucide-react";
 import {
   Card, Table, Th, Td, StatusBadge, Button,
   Modal, FormField, Input, Select, EmptyState, Pagination, Alert, Badge,
@@ -20,7 +20,7 @@ import { toast } from "sonner";
 interface User {
   _id: string; employeeId: string; firstName: string; lastName: string;
   email: string; phone: string; role: { name: string; slug: string };
-  status: string; lastLogin?: string; createdAt: string;
+  status: string; isSuperAdmin?: boolean; lastLogin?: string; createdAt: string;
 }
 
 interface DoctorFormData {
@@ -45,10 +45,12 @@ export function UsersClient() {
   const [doctorData, setDoctorData] = useState<DoctorFormData>(EMPTY_DOCTOR_FORM);
   const [showPassword, setShowPassword] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   const perms = session?.user.permissions || [];
   const isSA = session?.user.isSuperAdmin;
   const canCreate = isSA || perms.includes("users:create");
+  const canDelete = isSA || perms.includes("users:delete");
 
   const activeFiltersCount = [statusFilter, roleFilter].filter(Boolean).length;
 
@@ -121,6 +123,16 @@ export function UsersClient() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/users/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      setDeleteConfirm({ open: false, id: "", label: "" });
+      toast.success("User deleted!");
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
+  });
+
   const onSubmit = (d: CreateUserInput) => {
     setCreateError("");
     if (isDoctorRole && !doctorData.specialization.trim()) { setCreateError("Specialization is required"); return; }
@@ -184,7 +196,16 @@ export function UsersClient() {
                     <Td><Badge variant="outline">{u.role?.name}</Badge></Td>
                     <Td><StatusBadge status={u.status} /></Td>
                     <Td className="text-gray-400">{u.lastLogin ? formatDate(u.lastLogin) : "Never"}</Td>
-                    <Td><Link href={`/users/${u._id}`}><Button size="sm">View</Button></Link></Td>
+                    <Td>
+                      <div className="flex items-center gap-1">
+                        <Link href={`/users/${u._id}`}><Button size="sm">View</Button></Link>
+                        {canDelete && u._id !== session?.user.id && !u.isSuperAdmin && (
+                          <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: u._id, label: `${u.firstName} ${u.lastName}` })}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </Td>
                   </tr>))}
           </tbody>
         </Table>
@@ -201,7 +222,14 @@ export function UsersClient() {
                   <div className="flex items-center gap-2"><span className="text-xs font-medium text-gray-900">{u.firstName} {u.lastName}</span><StatusBadge status={u.status} /></div>
                   <div className="flex items-center gap-2 mt-0.5"><span className="text-xs text-gray-500">{u.role?.name}</span><span className="text-xs text-gray-400">•</span><span className="text-xs text-gray-500">{u.email}</span></div>
                 </div>
-                <Link href={`/users/${u._id}`}><Button size="sm">View</Button></Link>
+                <div className="flex items-center gap-1">
+                  <Link href={`/users/${u._id}`}><Button size="sm">View</Button></Link>
+                  {canDelete && u._id !== session?.user.id && !u.isSuperAdmin && (
+                    <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: u._id, label: `${u.firstName} ${u.lastName}` })}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>))}
         {pagination && pagination.totalPages > 1 && <div className="px-4 py-3 flex justify-center"><Pagination page={page} totalPages={pagination.totalPages} onPage={setPage} /></div>}
       </div>
@@ -261,6 +289,22 @@ export function UsersClient() {
             <Button type="submit" loading={createMutation.isPending}>{isDoctorRole ? "Create User & Doctor Profile" : "Create User"}</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete User" size="sm">
+        <div className="space-y-4 mt-2">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

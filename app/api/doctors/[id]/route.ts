@@ -66,3 +66,32 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   return apiSuccess(doctor, "Doctor updated successfully");
 }
+
+export async function DELETE(req: NextRequest, { params }: Params) {
+  const session = await auth();
+  if (!session) return apiError("Unauthorized", 401);
+  if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "doctors", "delete")) {
+    return apiError("Forbidden", 403);
+  }
+
+  await connectDB();
+  const { id } = await params;
+
+  const existing = await Doctor.findById(id).lean();
+  if (!existing) return apiError("Doctor not found", 404);
+  if (isInactiveRecord(existing)) return apiError("Doctor not found", 404);
+
+  await Doctor.findByIdAndUpdate(id, { status: "archived", isAvailable: false });
+
+  await auditLog({
+    userId: session.user.id,
+    action: "delete",
+    module: "doctors",
+    description: `Archived doctor ${existing.doctorId}`,
+    resourceId: id,
+    resourceType: "Doctor",
+    ipAddress: getIpFromHeaders(req.headers),
+  });
+
+  return apiSuccess(null, "Doctor deleted successfully");
+}

@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-    ArrowLeft, Calendar, FileText, Edit2, Clock, Printer, Download,
+    ArrowLeft, Calendar, FileText, Edit2, Clock, Printer, Download, Trash2,
 } from "lucide-react";
 import {
     Card, CardBody, StatusBadge, Badge, Button,
@@ -53,10 +53,12 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
     const [cancelReason, setCancelReason] = useState("");
     const [showCancelReason, setShowCancelReason] = useState(false);
     const [isPdfLoading, setIsPdfLoading] = useState(false);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
     const perms = session?.user.permissions || [];
     const isSA = session?.user.isSuperAdmin;
     const canUpdate = isSA || perms.includes("appointments:update");
+    const canDelete = isSA || perms.includes("appointments:delete");
 
     const { data, isLoading, error: queryError } = useQuery({
         queryKey: ["appointment", appointmentId],
@@ -84,6 +86,20 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
         },
         onError: (e: any) => {
             const msg = e?.response?.data?.error || "Failed to update";
+            setError(msg);
+            toast.error(msg);
+        },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: () => axios.delete(`/api/appointments/${appointmentId}`),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["appointments"] });
+            toast.success("Appointment deleted!");
+            router.push("/appointments");
+        },
+        onError: (e: any) => {
+            const msg = e?.response?.data?.error || "Failed to delete";
             setError(msg);
             toast.error(msg);
         },
@@ -204,6 +220,11 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
                     <Button variant="secondary" size="sm" onClick={openEditModal}>
                         <Edit2 className="w-3.5 h-3.5" /> Edit
                     </Button>
+                    {canDelete && (
+                        <Button variant="danger" size="sm" onClick={() => setDeleteConfirmOpen(true)}>
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -295,6 +316,22 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
                     <FormField label="Consultation Fee"><Input type="number" {...register("consultationFee", { valueAsNumber: true })} /></FormField>
                     <div className="flex justify-end gap-2 pt-2 border-t border-gray-300"><Button type="button" variant="secondary" onClick={() => { setEditOpen(false); setError(""); }}>Cancel</Button><Button type="submit" loading={updateMutation.isPending}>Save Changes</Button></div>
                 </form>
+            </Modal>
+
+            <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Delete Appointment" size="sm">
+                <div className="space-y-4 mt-2">
+                    <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                        <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
+                            <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{a.appointmentId}</strong>.</p>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+                        <Button variant="secondary" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+                        <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>Delete Permanently</Button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );
