@@ -3,13 +3,13 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
-import { Plus, Search, Filter, ChevronDown, X, Trash2 } from "lucide-react";
+import { Plus, Search, Filter, ChevronDown, X, Trash2, Hash, RefreshCw } from "lucide-react";
 import {
   Card, Table, Th, Td, StatusBadge, Button,
-  Modal, FormField, Input, Select, EmptyState, Pagination, Alert,
+  Modal, FormField, Input, Select, EmptyState, Pagination, Alert, Badge,
 } from "@/components/ui";
 import { createAppointmentSchema, CreateAppointmentInput } from "@/lib/validations";
 import { formatDate, cn } from "@/lib/utils";
@@ -29,6 +29,17 @@ interface Appointment {
   chiefComplaint?: string;
   consultationFee: number;
   duration: number;
+  queueNumber?: number;
+}
+
+interface DoctorQueueSummary {
+  doctorId: string;
+  doctorName: string;
+  specialization: string;
+  nowServing: number;
+  totalTokens: number;
+  waiting: number;
+  completed: number;
 }
 
 const TIME_SLOTS = [
@@ -38,13 +49,19 @@ const TIME_SLOTS = [
   "05:00 PM", "05:30 PM",
 ];
 
+const getTodayString = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 export function AppointmentsClient() {
   const { data: session } = useSession();
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("in_queue");
+  const [dateFilter, setDateFilter] = useState(getTodayString);
+  const [doctorFilter, setDoctorFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -52,18 +69,20 @@ export function AppointmentsClient() {
 
   const perms = session?.user.permissions || [];
   const isSA = session?.user.isSuperAdmin;
+  const isDoctorUser = !isSA && (session?.user?.roleSlug === "doctor" || session?.user?.role?.toLowerCase()?.includes("doctor"));
   const canCreate = isSA || perms.includes("appointments:create");
   const canDelete = isSA || perms.includes("appointments:delete");
 
-  const activeFiltersCount = [statusFilter, dateFilter].filter(Boolean).length;
+  const activeFiltersCount = [statusFilter, dateFilter, !isDoctorUser ? doctorFilter : ""].filter(Boolean).length;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["appointments", page, search, statusFilter, dateFilter],
+    queryKey: ["appointments", page, search, statusFilter, dateFilter, doctorFilter],
     queryFn: () => {
       const params: any = { page, limit: 25 };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       if (dateFilter) params.date = dateFilter;
+      if (doctorFilter) params.doctor = doctorFilter;
       return axios.get("/api/appointments", { params }).then((r) => r.data);
     },
   });
@@ -83,18 +102,56 @@ export function AppointmentsClient() {
   const patients = patientsData?.data || [];
   const doctors = doctorsData?.data || [];
 
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<CreateAppointmentInput>({
+  // Queue status — polls every 15s, only when viewing today's appointments
+  const todayStr = getTodayString();
+  const isViewingToday = !dateFilter || dateFilter === todayStr;
+  const {
+    data: queueData,
+    isFetching: queueFetching,
+    refetch: refetchQueue,
+  } = useQuery<{ success: boolean; data: DoctorQueueSummary[] }>({
+    queryKey: ["queue-status-appointments"],
+    queryFn: () => axios.get("/api/appointments/queue-status").then((r) => r.data),
+    refetchInterval: 15_000,
+    enabled: isViewingToday,
+  });
+  const queueSummaries = queueData?.data || [];
+
+  const { register, handleSubmit, reset, setValue, control, formState: { errors } } = useForm<CreateAppointmentInput>({
     resolver: zodResolver(createAppointmentSchema),
     defaultValues: {
-      patient: "", doctor: "", type: "opd", scheduledDate: dateFilter,
+      patient: "", doctor: "", type: "opd", scheduledDate: dateFilter || todayStr,
       scheduledTime: "", duration: 30, consultationFee: 0, chiefComplaint: "", notes: "",
     },
   });
+
+  const watchedDoctor = useWatch({ control, name: "doctor" });
+  const watchedDate = useWatch({ control, name: "scheduledDate" });
+  const watchedType = useWatch({ control, name: "type" });
+
+  const { data: nextQueueData, isFetching: nextQueueFetching } = useQuery({
+    queryKey: ["queue-next", watchedDoctor, watchedDate],
+    queryFn: () =>
+      axios
+        .get("/api/appointments/queue-next", { params: { doctor: watchedDoctor, date: watchedDate } })
+        .then((r) => r.data),
+    enabled: createOpen && !!watchedDoctor && !!watchedDate,
+  });
+
+  const previewQueue =
+    watchedType === "emergency"
+      ? "P (Priority)"
+      : nextQueueData?.data?.nextNumber != null
+        ? String(nextQueueData.data.nextNumber)
+        : "";
 
   const createMutation = useMutation({
     mutationFn: (d: CreateAppointmentInput) => axios.post("/api/appointments", d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["appointments"] });
+      qc.invalidateQueries({ queryKey: ["queue-status-appointments"] });
+      qc.invalidateQueries({ queryKey: ["queue-status"] });
+      qc.invalidateQueries({ queryKey: ["queue-next"] });
       setCreateOpen(false);
       reset();
       setCreateError("");
@@ -111,11 +168,15 @@ export function AppointmentsClient() {
     mutationFn: (id: string) => axios.delete(`/api/appointments/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["appointments"] });
+      qc.invalidateQueries({ queryKey: ["queue-status-appointments"] });
+      qc.invalidateQueries({ queryKey: ["queue-status"] });
       setDeleteConfirm({ open: false, id: "", label: "" });
       toast.success("Appointment deleted!");
     },
     onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
   });
+
+  const selectedDoctorObj = doctors.find((d: any) => d._id === doctorFilter);
 
   return (
     <div className="space-y-4">
@@ -133,6 +194,48 @@ export function AppointmentsClient() {
           </Button>
         )}
       </div>
+
+      {/* Live Queue Banner */}
+      {isViewingToday && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-gray-600">Live OPD Queue</p>
+            <Button
+              size="sm"
+              onClick={() => refetchQueue()}
+              disabled={queueFetching}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${queueFetching ? "animate-spin" : ""}`} />
+              Reload
+            </Button>
+          </div>
+          {queueSummaries.length > 0 ? (
+            <div className="flex flex-wrap gap-3">
+              {queueSummaries.map((q) => (
+                <div key={q.doctorId} className="inline-flex items-center gap-3 px-4 py-2.5 rounded-lg bg-teal-50 border border-teal-200">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
+                    <span className="text-xs font-medium text-teal-800">{q.doctorName}</span>
+                  </div>
+                  <div className="h-4 w-px bg-teal-200" />
+                  <span className="text-xs font-semibold text-teal-700">
+                    Total: <span className="font-bold">{q.totalTokens}</span>
+                  </span>
+                  <div className="h-4 w-px bg-teal-200" />
+                  <div className="flex items-center gap-1">
+                    <Hash className="w-3.5 h-3.5 text-teal-600" />
+                    <span className="text-xs font-semibold text-teal-700">
+                      Serving: <span className="font-bold">{q.nowServing === 0 ? "0" : `#${q.nowServing}`}</span>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">No queue tokens for today yet.</p>
+          )}
+        </div>
+      )}
 
       {/* Search + Filter Toggle */}
       <div className="flex gap-2">
@@ -173,7 +276,7 @@ export function AppointmentsClient() {
         <div className="flex items-center gap-2 flex-wrap">
           {statusFilter && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700 capitalize">
-              {statusFilter.replace(/_/g, " ")}
+              Status: {statusFilter === "in_queue" ? "In Queue" : statusFilter === "all" ? "All Statuses" : statusFilter.replace(/_/g, " ")}
               <button onClick={() => { setStatusFilter(""); setPage(1); }} className="cursor-pointer">
                 <X className="w-3 h-3" />
               </button>
@@ -181,15 +284,23 @@ export function AppointmentsClient() {
           )}
           {dateFilter && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
-              {dateFilter}
+              Date: {dateFilter === todayStr ? "Today" : dateFilter}
               <button onClick={() => { setDateFilter(""); setPage(1); }} className="cursor-pointer">
                 <X className="w-3 h-3" />
               </button>
             </span>
           )}
+          {!isDoctorUser && doctorFilter && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              Doctor: Dr. {selectedDoctorObj?.user?.firstName} {selectedDoctorObj?.user?.lastName}
+              <button onClick={() => { setDoctorFilter(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
           <button
-            onClick={() => { setStatusFilter(""); setDateFilter(""); setPage(1); }}
-            className="text-xs text-gray-400 cursor-pointer"
+            onClick={() => { setStatusFilter(""); setDateFilter(""); setDoctorFilter(""); setPage(1); }}
+            className="text-xs text-gray-400 cursor-pointer hover:text-gray-600"
           >
             Clear all
           </button>
@@ -199,11 +310,12 @@ export function AppointmentsClient() {
       {/* Expanded Filters */}
       {filtersOpen && (
         <div className="bg-gray-50 rounded-lg border border-gray-300 p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className={cn("grid grid-cols-1 gap-4", isDoctorUser ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
               <Select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
-                <option value="">All Statuses</option>
+                <option value="in_queue">In Queue (Waiting)</option>
+                <option value="all">All Statuses</option>
                 <option value="scheduled">Scheduled</option>
                 <option value="checked_in">Checked In</option>
                 <option value="in_consultation">In Consultation</option>
@@ -213,13 +325,37 @@ export function AppointmentsClient() {
               </Select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Date</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-gray-600">Date</label>
+                {dateFilter !== todayStr && (
+                  <button
+                    type="button"
+                    onClick={() => { setDateFilter(todayStr); setPage(1); }}
+                    className="text-[10px] text-teal-600 hover:underline cursor-pointer font-medium"
+                  >
+                    Set to Today
+                  </button>
+                )}
+              </div>
               <Input
                 type="date"
                 value={dateFilter}
                 onChange={e => { setDateFilter(e.target.value); setPage(1); }}
               />
             </div>
+            {!isDoctorUser && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Doctor</label>
+                <Select value={doctorFilter} onChange={e => { setDoctorFilter(e.target.value); setPage(1); }}>
+                  <option value="">All Doctors</option>
+                  {doctors.map((doc: any) => (
+                    <option key={doc._id} value={doc._id}>
+                      Dr. {doc.user?.firstName} {doc.user?.lastName} ({doc.specialization})
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -234,6 +370,7 @@ export function AppointmentsClient() {
               <Th>Doctor</Th>
               <Th>Date & Time</Th>
               <Th>Type</Th>
+              <Th>Queue</Th>
               <Th>Status</Th>
               <Th>Fee</Th>
               <Th>Actions</Th>
@@ -243,14 +380,14 @@ export function AppointmentsClient() {
             {isLoading ? (
               [...Array(8)].map((_, i) => (
                 <tr key={i}>
-                  {[...Array(8)].map((_, j) => (
+                  {[...Array(9)].map((_, j) => (
                     <Td key={j}><div className="h-4 bg-gray-100 rounded" /></Td>
                   ))}
                 </tr>
               ))
             ) : appointments.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <EmptyState
                     title="No appointments"
                     description="No appointments found for the selected filters."
@@ -284,6 +421,13 @@ export function AppointmentsClient() {
                     <div className="text-xs text-gray-400">{a.scheduledTime} ({a.duration} min)</div>
                   </Td>
                   <Td className="capitalize text-gray-600">{a.type?.replace(/_/g, " ")}</Td>
+                  <Td>
+                    {a.queueNumber != null ? (
+                      <Badge variant={a.queueNumber === 0 ? "warning" : "info"}>#{a.queueNumber === 0 ? "P" : a.queueNumber}</Badge>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </Td>
                   <Td><StatusBadge status={a.status} /></Td>
                   <Td className="text-gray-600">PKR {a.consultationFee?.toLocaleString()}</Td>
                   <Td>
@@ -386,13 +530,14 @@ export function AppointmentsClient() {
             </FormField>
             <FormField label="Doctor" required error={errors.doctor?.message}>
               <Select
-                {...register("doctor")}
+                {...register("doctor", {
+                  onChange: (e) => {
+                    const doctorId = e.target.value;
+                    const doctor = doctors.find((d: any) => d._id === doctorId);
+                    if (doctor?.consultationFee) setValue("consultationFee", doctor.consultationFee);
+                  },
+                })}
                 error={!!errors.doctor}
-                onChange={(e) => {
-                  const doctorId = e.target.value;
-                  const doctor = doctors.find((d: any) => d._id === doctorId);
-                  if (doctor?.consultationFee) setValue("consultationFee", doctor.consultationFee);
-                }}
               >
                 <option value="">Select doctor</option>
                 {doctors.map((d: any) => (
@@ -411,6 +556,15 @@ export function AppointmentsClient() {
                 {TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
               </Select>
             </FormField>
+            <FormField label="Queue No.">
+              <Input
+                value={watchedDoctor && watchedDate ? (nextQueueFetching && watchedType !== "emergency" ? "…" : previewQueue) : ""}
+                placeholder={!watchedDoctor || !watchedDate ? "Select doctor & date" : ""}
+                disabled
+              />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <FormField label="Duration (mins)">
               <Select {...register("duration", { valueAsNumber: true })}>
                 {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60].map(d => (
@@ -418,8 +572,6 @@ export function AppointmentsClient() {
                 ))}
               </Select>
             </FormField>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Type">
               <Select {...register("type")}>
                 <option value="opd">OPD</option>

@@ -60,10 +60,28 @@ export function hasPermission(
 
 // ─── DATE HELPERS ─────────────────────────────────────────
 export function formatDate(date: Date | string, format = "DD/MM/YYYY"): string {
-  const d = new Date(date);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
+  if (!date) return "";
+  let day: string;
+  let month: string;
+  let year: number;
+
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}/.test(date)) {
+    const [y, m, d] = date.slice(0, 10).split("-").map(Number);
+    year = y;
+    month = String(m).padStart(2, "0");
+    day = String(d).padStart(2, "0");
+  } else {
+    const dObj = new Date(date);
+    if (dObj.getUTCHours() === 0 && dObj.getUTCMinutes() === 0 && dObj.getUTCSeconds() === 0) {
+      day = String(dObj.getUTCDate()).padStart(2, "0");
+      month = String(dObj.getUTCMonth() + 1).padStart(2, "0");
+      year = dObj.getUTCFullYear();
+    } else {
+      day = String(dObj.getDate()).padStart(2, "0");
+      month = String(dObj.getMonth() + 1).padStart(2, "0");
+      year = dObj.getFullYear();
+    }
+  }
   return format.replace("DD", day).replace("MM", month).replace("YYYY", String(year));
 }
 

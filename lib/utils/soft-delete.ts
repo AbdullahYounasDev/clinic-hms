@@ -56,7 +56,11 @@ export function applyLabTestStatusFilter(filter: QueryFilter, statusParam?: stri
 
 /** Appointments: hide archived unless ?status= passed */
 export function applyAppointmentStatusFilter(filter: QueryFilter, statusParam?: string | null) {
-  if (statusParam) {
+  if (statusParam === "in_queue" || statusParam === "queue") {
+    filter.status = { $in: ["scheduled", "checked_in"] };
+  } else if (statusParam === "all" || statusParam === "all_statuses") {
+    filter.status = { $ne: "archived" };
+  } else if (statusParam) {
     filter.status = { $in: statusParam.split(",") };
   } else {
     filter.status = { $ne: "archived" };

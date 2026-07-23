@@ -5,6 +5,7 @@ import axios from "axios";
 import { Card, Table, Th, Td, StatusBadge, EmptyState, Pagination, Badge } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 import { useState } from "react";
+import { PatientQueueBanner, PatientQueueBannerData } from "./patient-queue-banner";
 
 export function PortalAppointmentsClient() {
   const [page, setPage] = useState(1);
@@ -12,6 +13,16 @@ export function PortalAppointmentsClient() {
   const { data, isLoading } = useQuery({
     queryKey: ["portal-appointments", page],
     queryFn: () => axios.get("/api/portal/appointments", { params: { page, limit: 15 } }).then((r) => r.data),
+  });
+
+  const {
+    data: queueData,
+    isFetching: queueFetching,
+    refetch: refetchQueue,
+  } = useQuery<{ success: boolean; data: PatientQueueBannerData }>({
+    queryKey: ["portal-queue-status"],
+    queryFn: () => axios.get("/api/portal/queue-status").then((r) => r.data),
+    refetchInterval: 20_000,
   });
 
   const appointments = data?.data || [];
@@ -23,6 +34,12 @@ export function PortalAppointmentsClient() {
         <h1 className="text-lg font-semibold text-gray-900">Appointments</h1>
         <p className="text-xs text-gray-500 mt-0.5">Your scheduled and past visits</p>
       </div>
+
+      <PatientQueueBanner
+        data={queueData?.data}
+        onReload={() => refetchQueue()}
+        isReloading={queueFetching}
+      />
 
       {/* Desktop Table */}
       <Card className="hidden md:block overflow-x-auto">
@@ -53,7 +70,9 @@ export function PortalAppointmentsClient() {
                   <Td className="text-gray-500">{a.scheduledTime}</Td>
                   <Td>
                     {a.queueNumber != null ? (
-                      <Badge variant="info">#{a.queueNumber}</Badge>
+                      <Badge variant={a.queueNumber === 0 ? "warning" : "info"}>
+                        #{a.queueNumber === 0 ? "P" : a.queueNumber}
+                      </Badge>
                     ) : (
                       <span className="text-gray-300">—</span>
                     )}
@@ -111,7 +130,9 @@ export function PortalAppointmentsClient() {
                   {a.queueNumber != null && (
                     <>
                       <span className="text-gray-300">•</span>
-                      <Badge variant="info" className="text-[10px]">#{a.queueNumber}</Badge>
+                      <Badge variant={a.queueNumber === 0 ? "warning" : "info"} className="text-[10px]">
+                        #{a.queueNumber === 0 ? "P" : a.queueNumber}
+                      </Badge>
                     </>
                   )}
                 </div>

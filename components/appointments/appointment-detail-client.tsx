@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-    ArrowLeft, Calendar, FileText, Edit2, Clock, Printer, Download, Trash2,
+    ArrowLeft, Calendar, FileText, Edit2, Clock, Printer, Download, Trash2, Hash,
 } from "lucide-react";
 import {
     Card, CardBody, StatusBadge, Badge, Button,
@@ -41,6 +41,7 @@ interface Appointment {
     checkedInAt?: string;
     completedAt?: string;
     createdAt: string;
+    queueNumber?: number;
 }
 
 export function AppointmentDetailClient({ appointmentId }: { appointmentId: string }) {
@@ -78,6 +79,9 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["appointment", appointmentId] });
             qc.invalidateQueries({ queryKey: ["appointments"] });
+            qc.invalidateQueries({ queryKey: ["queue-status"] });
+            qc.invalidateQueries({ queryKey: ["queue-status-appointments"] });
+            qc.invalidateQueries({ queryKey: ["portal-queue-status"] });
             setEditOpen(false);
             setCancelReason("");
             setShowCancelReason(false);
@@ -95,6 +99,8 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
         mutationFn: () => axios.delete(`/api/appointments/${appointmentId}`),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["appointments"] });
+            qc.invalidateQueries({ queryKey: ["queue-status"] });
+            qc.invalidateQueries({ queryKey: ["queue-status-appointments"] });
             toast.success("Appointment deleted!");
             router.push("/appointments");
         },
@@ -249,6 +255,14 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
                             <Row label="Type"><Badge variant="outline" className="capitalize">{a.type?.replace(/_/g, " ")}</Badge></Row>
                             <Row label="Date" value={formatDate(a.scheduledDate)} />
                             <Row label="Time" value={`${a.scheduledTime} (${a.duration} min)`} />
+                            {a.queueNumber != null && (
+                                <Row label="Queue Token">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200">
+                                        <Hash className="w-3 h-3 text-teal-600" />
+                                        <span className="text-sm font-bold text-teal-700">{a.queueNumber === 0 ? "P (Priority)" : a.queueNumber}</span>
+                                    </span>
+                                </Row>
+                            )}
                             <Row label="Fee" value={formatCurrency(a.consultationFee)} />
                             <Row label="Payment"><Badge variant={a.isPaid ? "success" : "default"}>{a.isPaid ? "Paid" : "Pending"}</Badge></Row>
                         </div>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Card, CardBody, Skeleton, Alert } from "@/components/ui";
 import { Calendar, Clipboard, Receipt, FlaskConical, Pill } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { PatientQueueBanner, PatientQueueBannerData } from "./patient-queue-banner";
 
 export function PortalHomeClient() {
   const { data: profile, isLoading: profileLoading } = useQuery({
@@ -18,8 +19,19 @@ export function PortalHomeClient() {
     queryFn: () => axios.get("/api/portal/appointments", { params: { limit: 3 } }).then((r) => r.data),
   });
 
+  const {
+    data: queueData,
+    isFetching: queueFetching,
+    refetch: refetchQueue,
+  } = useQuery<{ success: boolean; data: PatientQueueBannerData }>({
+    queryKey: ["portal-queue-status"],
+    queryFn: () => axios.get("/api/portal/queue-status").then((r) => r.data),
+    refetchInterval: 20_000,
+  });
+
   const patient = profile?.data;
   const upcoming = appts?.data || [];
+  const queueStatus = queueData?.data;
 
   if (profileLoading) {
     return (
@@ -51,6 +63,12 @@ export function PortalHomeClient() {
         </p>
       </div>
 
+      <PatientQueueBanner
+        data={queueStatus}
+        onReload={() => refetchQueue()}
+        isReloading={queueFetching}
+      />
+
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {navItems.map((item) => (
           <Link key={item.title} href={item.href}>
@@ -66,8 +84,8 @@ export function PortalHomeClient() {
         <CardBody>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-semibold text-gray-900">Recent Appointments</h2>
-            <Link 
-              href="/portal/appointments" 
+            <Link
+              href="/portal/appointments"
               className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 cursor-pointer transition-colors"
             >
               View all
@@ -89,7 +107,9 @@ export function PortalHomeClient() {
                   </div>
                   <div className="text-right shrink-0">
                     {a.queueNumber != null && (
-                      <p className="text-xs font-semibold text-teal-700">Queue #{a.queueNumber}</p>
+                      <p className="text-xs font-semibold text-teal-700">
+                        Queue #{a.queueNumber === 0 ? "P" : a.queueNumber}
+                      </p>
                     )}
                     <p className="text-[10px] text-gray-400 capitalize">{a.status?.replace(/_/g, " ")}</p>
                   </div>

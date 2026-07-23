@@ -43,6 +43,7 @@ export function UsersClient() {
   const [createError, setCreateError] = useState("");
   const [tempPassword, setTempPassword] = useState("");
   const [doctorData, setDoctorData] = useState<DoctorFormData>(EMPTY_DOCTOR_FORM);
+  const [doctorErrors, setDoctorErrors] = useState<{ specialization?: string; consultationFee?: string }>({});
   const [showPassword, setShowPassword] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
@@ -83,10 +84,16 @@ export function UsersClient() {
   });
 
   const selectedRoleId = watch("role");
-  const selectedRole = roles.find((r: { _id: string; slug: string }) => r._id === selectedRoleId);
-  const isDoctorRole = selectedRole?.slug === "doctor";
+  const selectedRole = roles.find((r: any) => String(r._id) === String(selectedRoleId) || r.slug === selectedRoleId || r.name === selectedRoleId);
+  const isDoctorRole = Boolean(
+    selectedRole &&
+      (selectedRole.slug?.toLowerCase() === "doctor" ||
+       selectedRole.name?.toLowerCase() === "doctor" ||
+       selectedRole.slug?.toLowerCase().includes("doctor") ||
+       selectedRole.name?.toLowerCase().includes("doctor"))
+  );
 
-  const resetAll = () => { reset(); setDoctorData(EMPTY_DOCTOR_FORM); setCreateError(""); };
+  const resetAll = () => { reset(); setDoctorData(EMPTY_DOCTOR_FORM); setDoctorErrors({}); setCreateError(""); };
 
   const createMutation = useMutation({
     mutationFn: async (d: CreateUserInput) => {
@@ -99,7 +106,7 @@ export function UsersClient() {
             user: newUser._id, specialization: doctorData.specialization,
             department: doctorData.department || undefined,
             experience: doctorData.experience ? Number(doctorData.experience) : 0,
-            consultationFee: doctorData.consultationFee ? Number(doctorData.consultationFee) : 0,
+            consultationFee: doctorData.consultationFee !== "" ? Number(doctorData.consultationFee) : 0,
             qualifications: doctorData.qualifications ? doctorData.qualifications.split(",").map(q => q.trim()).filter(Boolean) : [],
             bio: doctorData.bio || undefined,
           });
@@ -135,7 +142,21 @@ export function UsersClient() {
 
   const onSubmit = (d: CreateUserInput) => {
     setCreateError("");
-    if (isDoctorRole && !doctorData.specialization.trim()) { setCreateError("Specialization is required"); return; }
+    setDoctorErrors({});
+    if (isDoctorRole) {
+      const errs: { specialization?: string; consultationFee?: string } = {};
+      if (!doctorData.specialization.trim()) {
+        errs.specialization = "Specialization is required for Doctor profile";
+      }
+      if (doctorData.consultationFee === "" || doctorData.consultationFee === null || isNaN(Number(doctorData.consultationFee)) || Number(doctorData.consultationFee) < 0) {
+        errs.consultationFee = "Consultation fee is required";
+      }
+      if (Object.keys(errs).length > 0) {
+        setDoctorErrors(errs);
+        setCreateError("Please fix doctor profile errors before submitting.");
+        return;
+      }
+    }
     createMutation.mutate(d);
   };
 
@@ -264,14 +285,58 @@ export function UsersClient() {
           {isDoctorRole && (
             <div className="border-t border-gray-200 pt-4 space-y-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Doctor Profile Details</p>
-              <FormField label="Specialization" required><Input value={doctorData.specialization} onChange={e => setDoctorData(p => ({ ...p, specialization: e.target.value }))} placeholder="e.g. Cardiologist" /></FormField>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField label="Department"><Select value={doctorData.department} onChange={e => setDoctorData(p => ({ ...p, department: e.target.value }))}><option value="">Select department</option>{departments.map((d: any) => <option key={d._id} value={d._id}>{d.name}</option>)}</Select></FormField>
-                <FormField label="Experience (years)"><Input type="number" value={doctorData.experience} onChange={e => setDoctorData(p => ({ ...p, experience: e.target.value }))} placeholder="0" /></FormField>
+                <FormField label="Specialization" required error={doctorErrors.specialization}>
+                  <Input
+                    value={doctorData.specialization}
+                    onChange={e => {
+                      setDoctorData(p => ({ ...p, specialization: e.target.value }));
+                      if (e.target.value.trim()) setDoctorErrors(p => ({ ...p, specialization: undefined }));
+                    }}
+                    error={!!doctorErrors.specialization}
+                    placeholder="e.g. Cardiologist"
+                  />
+                </FormField>
+                <FormField label="Department">
+                  <Select value={doctorData.department} onChange={e => setDoctorData(p => ({ ...p, department: e.target.value }))}>
+                    <option value="">Select department</option>
+                    {departments.map((d: any) => <option key={d._id} value={d._id}>{d.name}</option>)}
+                  </Select>
+                </FormField>
               </div>
-              <FormField label="Consultation Fee (PKR)" required><Input type="number" value={doctorData.consultationFee} onChange={e => setDoctorData(p => ({ ...p, consultationFee: e.target.value }))} placeholder="0" /></FormField>
-              <FormField label="Qualifications" hint="Comma separated e.g. MBBS, FCPS"><Input value={doctorData.qualifications} onChange={e => setDoctorData(p => ({ ...p, qualifications: e.target.value }))} placeholder="MBBS, FCPS, MD" /></FormField>
-              <FormField label="Bio"><textarea value={doctorData.bio} onChange={e => setDoctorData(p => ({ ...p, bio: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs resize-none focus:outline-none focus:border-teal-600 text-gray-700 placeholder:text-gray-400" /></FormField>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Experience (years)">
+                  <Input
+                    type="number"
+                    value={doctorData.experience}
+                    onChange={e => setDoctorData(p => ({ ...p, experience: e.target.value }))}
+                    placeholder="0"
+                  />
+                </FormField>
+                <FormField label="Consultation Fee (PKR)" required error={doctorErrors.consultationFee}>
+                  <Input
+                    type="number"
+                    value={doctorData.consultationFee}
+                    onChange={e => {
+                      setDoctorData(p => ({ ...p, consultationFee: e.target.value }));
+                      if (e.target.value !== "") setDoctorErrors(p => ({ ...p, consultationFee: undefined }));
+                    }}
+                    error={!!doctorErrors.consultationFee}
+                    placeholder="0"
+                  />
+                </FormField>
+              </div>
+              <FormField label="Qualifications" hint="Comma separated e.g. MBBS, FCPS">
+                <Input value={doctorData.qualifications} onChange={e => setDoctorData(p => ({ ...p, qualifications: e.target.value }))} placeholder="MBBS, FCPS, MD" />
+              </FormField>
+              <FormField label="Bio">
+                <textarea
+                  value={doctorData.bio}
+                  onChange={e => setDoctorData(p => ({ ...p, bio: e.target.value }))}
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs resize-none focus:outline-none focus:border-teal-600 text-gray-700 placeholder:text-gray-400"
+                />
+              </FormField>
             </div>
           )}
 

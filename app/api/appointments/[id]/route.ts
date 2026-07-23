@@ -5,6 +5,7 @@ import { Appointment } from "@/models/clinical.model";
 import { apiSuccess, apiError, getIpFromHeaders, isArchivedStatus } from "@/lib/utils";
 import { updateAppointmentSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
+import { QueueService, hasQueueToken } from "@/services/queue.service";
 
 interface Params { params: Promise<{ id: string }> }
 
@@ -39,10 +40,51 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.status === "checked_in") updateData.checkedInAt = new Date();
   if (parsed.data.status === "completed") updateData.completedAt = new Date();
-  const apt = await Appointment.findByIdAndUpdate(id, updateData, { new: true }).lean();
-  if (!apt) return apiError("Appointment not found", 404);
-  await auditLog({ userId: session.user.id, action: "update", module: "appointments", description: `Updated appointment status to ${parsed.data.status}`, resourceId: id, ipAddress: getIpFromHeaders(req.headers) });
-  return apiSuccess(apt, "Appointment updated");
+  if (parsed.data.scheduledDate) {
+    const [sy, sm, sd] = parsed.data.scheduledDate.split("-").map(Number);
+    updateData.scheduledDate = new Date(sy, sm - 1, sd, 12, 0, 0, 0);
+  }
+
+  await Appointment.findByIdAndUpdate(id, updateData);
+
+  const doctorId = ((body.doctor as string) || existing.doctor).toString();
+  const scheduledDateInput = parsed.data.scheduledDate || existing.scheduledDate;
+  const type = (body.type as string) || existing.type;
+  const isEmergency = type === "emergency";
+
+  const doctorOrDateChanged =
+    (body.doctor && body.doctor.toString() !== existing.doctor.toString()) ||
+    (parsed.data.scheduledDate &&
+      parsed.data.scheduledDate !== (existing.scheduledDate instanceof Date ? existing.scheduledDate.toISOString().slice(0, 10) : String(existing.scheduledDate)));
+
+  const needsToken =
+    !hasQueueToken(existing.queueNumber) || doctorOrDateChanged || (isEmergency && existing.queueNumber !== 0);
+
+  let queueNote = "";
+  if (needsToken && !["cancelled", "no_show", "archived"].includes(parsed.data.status || existing.status)) {
+    const token = await QueueService.assignQueueToken(id, doctorId, scheduledDateInput, isEmergency);
+    queueNote = ` — Queue #${token}`;
+  }
+
+  const apt = await Appointment.findById(id)
+    .populate("patient", "firstName lastName patientId phone")
+    .populate({ path: "doctor", populate: { path: "user", select: "firstName lastName" } })
+    .lean();
+
+  const statusMsg = parsed.data.status
+    ? `Updated appointment status to ${parsed.data.status}${queueNote}`
+    : `Updated appointment${queueNote}`;
+
+  await auditLog({
+    userId: session.user.id,
+    action: "update",
+    module: "appointments",
+    description: statusMsg,
+    resourceId: id,
+    ipAddress: getIpFromHeaders(req.headers),
+  });
+
+  return apiSuccess(apt, statusMsg);
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {

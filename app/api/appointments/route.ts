@@ -6,6 +6,7 @@ import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHe
 import { createAppointmentSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { NotificationService } from "@/services/notification.service";
+import { QueueService } from "@/services/queue.service";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -146,11 +147,22 @@ export async function POST(req: NextRequest) {
     return apiError("Doctor already has an appointment at this time", 409);
   }
 
+  const [sy, sm, sd] = parsed.data.scheduledDate.split("-").map(Number);
+  const scheduledDate = new Date(sy, sm - 1, sd, 12, 0, 0, 0);
+
   const appointment = await Appointment.create({
     ...parsed.data,
-    scheduledDate: new Date(parsed.data.scheduledDate),
+    scheduledDate,
     createdBy: session.user.id,
   });
+
+  const isEmergency = parsed.data.type === "emergency";
+  const queueToken = await QueueService.assignQueueToken(
+    appointment._id.toString(),
+    parsed.data.doctor,
+    parsed.data.scheduledDate,
+    isEmergency
+  );
 
   const populated = await Appointment.findById(appointment._id)
     .populate("patient", "firstName lastName patientId")
@@ -161,7 +173,7 @@ export async function POST(req: NextRequest) {
     userId: session.user.id,
     action: "create",
     module: "appointments",
-    description: `Created appointment ${appointment.appointmentId}`,
+    description: `Created appointment ${appointment.appointmentId} — Queue #${queueToken}`,
     resourceId: appointment._id.toString(),
     resourceType: "Appointment",
     ipAddress: getIpFromHeaders(req.headers),
@@ -170,11 +182,12 @@ export async function POST(req: NextRequest) {
   const doctorData = populated?.doctor as any;
   if (doctorData?.user?._id) {
     const patientData = populated?.patient as any;
+    const formattedDate = populated?.scheduledDate ? new Date(populated.scheduledDate).toLocaleDateString() : "";
     await NotificationService.create({
       userId: doctorData.user._id.toString(),
       type: "appointment_reminder",
       title: "New Appointment",
-      message: `${patientData?.firstName} ${patientData?.lastName} has an appointment on ${new Date(populated?.scheduledDate).toLocaleDateString()} at ${populated?.scheduledTime}`,
+      message: `${patientData?.firstName} ${patientData?.lastName} has an appointment on ${formattedDate} at ${populated?.scheduledTime}`,
       priority: "medium",
       actionUrl: `/appointments/${appointment._id}`,
       metadata: { appointmentId: appointment._id.toString() },

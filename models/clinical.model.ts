@@ -204,7 +204,7 @@ export interface IAppointment extends Document {
   completedAt?: Date;
   consultationFee: number;
   isPaid: boolean;
-  /** Queue token for live OPD/waiting-room displays (future real-time) */
+  /** Queue token for live OPD/waiting-room displays */
   queueNumber?: number;
   queueDate?: Date;
   createdBy: mongoose.Types.ObjectId;
@@ -246,6 +246,9 @@ AppointmentSchema.pre("save", async function () {
     this.appointmentId = `APT-${String(count + 1).padStart(6, "0")}`;
   }
 });
+
+// Compound index for fast per-doctor, per-day queue queries
+AppointmentSchema.index({ doctor: 1, queueDate: 1, status: 1 });
 
 // ─── EMR MODEL ────────────────────────────────────────────
 export interface IEMR extends Document {

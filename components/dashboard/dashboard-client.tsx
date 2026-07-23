@@ -7,15 +7,28 @@ import {
   Receipt, FlaskConical, TrendingUp, Clock,
   Tablet,
   Pill,
+  Hash,
+  RefreshCw,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { StatCard, Card, CardHeader, CardBody, StatusBadge, Skeleton } from "@/components/ui";
+import { StatCard, Card, CardHeader, CardBody, StatusBadge, Skeleton, Badge, Button } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import axios from "axios";
+
+interface DoctorQueueSummary {
+  doctorId: string;
+  doctorName: string;
+  specialization: string;
+  nowServing: number;
+  totalTokens: number;
+  waiting: number;
+  completed: number;
+  currentPatient: { name: string; patientId: string } | null;
+}
 
 interface DashboardStats {
   totalPatients: number | null;
@@ -49,6 +62,17 @@ export function DashboardClient({ session }: { session: Session }) {
     refetchInterval: 60_000,
   });
 
+  const canViewAppointments = isSA || perms.includes("appointments:view");
+
+  const { data: queueData, isLoading: queueLoading, isFetching: queueFetching, refetch: refetchQueue } = useQuery<{ success: boolean; data: DoctorQueueSummary[] }>({
+    queryKey: ["queue-status"],
+    queryFn: () => axios.get("/api/appointments/queue-status").then((r) => r.data),
+    refetchInterval: 15_000,
+    enabled: canViewAppointments,
+  });
+
+  const queueSummaries = queueData?.data || [];
+
   const stats = data?.data;
 
   const appointmentChartData = Object.entries(stats?.appointmentsByStatus ?? {}).map(
@@ -73,6 +97,67 @@ export function DashboardClient({ session }: { session: Session }) {
           Welcome back, {session.user.fullName}. Here&apos;s what&apos;s happening today.
         </p>
       </div>
+
+      {/* Live OPD Queue */}
+      {canViewAppointments && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Hash className="w-4 h-4 text-gray-500" />
+                <h3 className="text-xs font-semibold text-gray-700">Live OPD Queue</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
+                  <span className="text-[10px] text-gray-400">Live</span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => refetchQueue()}
+                  disabled={queueFetching}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${queueFetching ? "animate-spin" : ""}`} />
+                  Reload
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardBody className="p-0">
+            {queueLoading ? (
+              <div className="p-4 space-y-3">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+              </div>
+            ) : queueSummaries.length === 0 ? (
+              <div className="py-8 text-center text-xs text-gray-400">No active queue today</div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {queueSummaries.map((q) => (
+                  <div key={q.doctorId} className="flex items-center justify-between px-4 py-3 gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-gray-900 truncate">{q.doctorName}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{q.specialization}</p>
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0">
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-gray-800">{q.totalTokens}</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Total</p>
+                      </div>
+                      <div className="h-6 w-px bg-gray-200" />
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-teal-600">
+                          {q.nowServing === 0 ? "0" : `#${q.nowServing}`}
+                        </p>
+                        <p className="text-[10px] text-gray-400 font-medium">Serving</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
