@@ -169,8 +169,12 @@ export const updateAppointmentSchema = z.object({
     .optional(),
   scheduledDate: z.string().optional(),
   scheduledTime: z.string().optional(),
+  duration: z.number().min(5).max(180).optional(),
+  type: z.enum(["opd", "follow_up", "emergency", "teleconsultation"]).optional(),
+  chiefComplaint: z.string().optional(),
   cancellationReason: z.string().optional(),
   notes: z.string().optional(),
+  consultationFee: z.number().min(0).optional(),
 });
 
 // ─── EMR SCHEMAS ──────────────────────────────────────────

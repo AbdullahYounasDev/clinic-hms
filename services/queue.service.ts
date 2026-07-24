@@ -74,6 +74,13 @@ export function toQueueDate(input: Date | string): Date {
   return startOfDay(new Date(year, month, day));
 }
 
+export function getDateRange(input?: Date | string): { start: Date; end: Date } {
+  const d = toQueueDate(input || new Date());
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+  return { start, end };
+}
+
 export function hasQueueToken(queueNumber: unknown): boolean {
   return queueNumber != null && queueNumber !== "";
 }
@@ -90,11 +97,14 @@ export class QueueService {
     excludeAppointmentId?: string
   ): Promise<number> {
     await connectDB();
-    const queueDate = toQueueDate(date);
+    const { start, end } = getDateRange(date);
 
     const filter: Record<string, unknown> = {
       doctor: doctorId,
-      queueDate,
+      $or: [
+        { scheduledDate: { $gte: start, $lte: end } },
+        { queueDate: { $gte: start, $lte: end } },
+      ],
       queueNumber: { $gt: 0 },
       status: { $nin: EXCLUDED_STATUSES },
     };
@@ -150,11 +160,17 @@ export class QueueService {
    */
   static async getNowServing(doctorId: string, date?: Date | string): Promise<number> {
     await connectDB();
-    const queueDate = toQueueDate(date ?? new Date());
+    const { start, end } = getDateRange(date ?? new Date());
+    const dateMatch = {
+      $or: [
+        { scheduledDate: { $gte: start, $lte: end } },
+        { queueDate: { $gte: start, $lte: end } },
+      ],
+    };
 
     const inConsultation = await Appointment.findOne({
       doctor: doctorId,
-      queueDate,
+      ...dateMatch,
       status: "in_consultation",
       queueNumber: { $ne: null },
     })
@@ -167,7 +183,7 @@ export class QueueService {
 
     const lastCompleted = await Appointment.findOne({
       doctor: doctorId,
-      queueDate,
+      ...dateMatch,
       status: "completed",
       queueNumber: { $gt: 0 },
     })
@@ -187,11 +203,29 @@ export class QueueService {
    */
   static async getDoctorQueueSummaries(doctorId?: string): Promise<DoctorQueueSummary[]> {
     await connectDB();
-    const today = toQueueDate(new Date());
+    const { start, end } = getDateRange(new Date());
+
+    // Auto-assign queue tokens to any active appointments scheduled for today that lack a queueNumber
+    const unqueued = await Appointment.find({
+      scheduledDate: { $gte: start, $lte: end },
+      status: { $nin: EXCLUDED_STATUSES },
+      $or: [{ queueNumber: null }, { queueNumber: { $exists: false } }],
+    }).select("_id doctor scheduledDate type").lean();
+
+    for (const appt of unqueued) {
+      await this.assignQueueToken(
+        appt._id.toString(),
+        appt.doctor.toString(),
+        appt.scheduledDate,
+        appt.type === "emergency"
+      );
+    }
 
     const matchFilter: Record<string, unknown> = {
-      queueDate: today,
-      queueNumber: { $ne: null },
+      $or: [
+        { scheduledDate: { $gte: start, $lte: end } },
+        { queueDate: { $gte: start, $lte: end } },
+      ],
       status: { $nin: EXCLUDED_STATUSES },
     };
     if (doctorId) {
@@ -301,7 +335,10 @@ export class QueueService {
       if (r.inConsultation > 0) {
         const currentAppt = await Appointment.findOne({
           doctor: r._id,
-          queueDate: today,
+          $or: [
+            { scheduledDate: { $gte: start, $lte: end } },
+            { queueDate: { $gte: start, $lte: end } },
+          ],
           status: "in_consultation",
           queueNumber: { $ne: null },
         })
@@ -345,11 +382,14 @@ export class QueueService {
     patientId: string
   ): Promise<PatientQueueStatus | null> {
     await connectDB();
-    const today = toQueueDate(new Date());
+    const { start, end } = getDateRange(new Date());
 
     const appointment = await Appointment.findOne({
       patient: patientId,
-      queueDate: today,
+      $or: [
+        { scheduledDate: { $gte: start, $lte: end } },
+        { queueDate: { $gte: start, $lte: end } },
+      ],
       queueNumber: { $ne: null },
       status: { $in: ACTIVE_QUEUE_STATUSES },
     })
@@ -369,7 +409,7 @@ export class QueueService {
       user: { firstName: string; lastName: string };
     };
 
-    const nowServing = await this.getNowServing(doctor._id.toString(), today);
+    const nowServing = await this.getNowServing(doctor._id.toString());
     const queueNum = appointment.queueNumber ?? 0;
     const patientsAhead = Math.max(0, queueNum === 0 ? 0 : queueNum - nowServing);
 

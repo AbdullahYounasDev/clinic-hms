@@ -16,6 +16,7 @@ import {
     Skeleton, Alert, Modal, FormField, Input, Select,
 } from "@/components/ui";
 import { formatDate, formatCurrency } from "@/lib/utils";
+import { TIME_SLOTS } from "@/constants/appointments";
 import { updateAppointmentSchema, UpdateAppointmentInput } from "@/lib/validations";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
@@ -313,10 +314,24 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField label="Date" required error={errors.scheduledDate?.message}><Input type="date" {...register("scheduledDate")} /></FormField>
-                        <FormField label="Time" required error={errors.scheduledTime?.message}><Input type="time" {...register("scheduledTime")} step="1800" /></FormField>
+                        <FormField label="Time" required error={errors.scheduledTime?.message}>
+                            <Select {...register("scheduledTime")} error={!!errors.scheduledTime}>
+                                <option value="">Select time</option>
+                                {TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
+                                {watch("scheduledTime") && !TIME_SLOTS.includes(watch("scheduledTime") || "") && (
+                                    <option value={watch("scheduledTime")}>{watch("scheduledTime")}</option>
+                                )}
+                            </Select>
+                        </FormField>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormField label="Duration (mins)"><Input type="number" {...register("duration", { valueAsNumber: true })} /></FormField>
+                        <FormField label="Duration (mins)">
+                            <Select {...register("duration", { valueAsNumber: true })}>
+                                {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60].map(d => (
+                                    <option key={d} value={d}>{d} min</option>
+                                ))}
+                            </Select>
+                        </FormField>
                         <FormField label="Type"><Select {...register("type")}><option value="opd">OPD</option><option value="follow_up">Follow Up</option><option value="emergency">Emergency</option><option value="teleconsultation">Teleconsultation</option></Select></FormField>
                     </div>
                     <FormField label="Status"><Select value={selectedStatus} onChange={handleStatusChange}><option value="scheduled">Scheduled</option><option value="checked_in">Checked In</option><option value="in_consultation">In Consultation</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="no_show">No Show</option></Select></FormField>
