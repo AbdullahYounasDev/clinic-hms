@@ -1,13 +1,13 @@
 // components/opd/emr-templates.ts
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
-import { 
-  NEXT_PUBLIC_CLINIC_NAME, 
-  NEXT_PUBLIC_CLINIC_TAGLINE, 
-  NEXT_PUBLIC_CLINIC_ADDRESS, 
+import {
+  NEXT_PUBLIC_CLINIC_NAME,
+  NEXT_PUBLIC_CLINIC_TAGLINE,
+  NEXT_PUBLIC_CLINIC_ADDRESS,
   NEXT_PUBLIC_CLINIC_PHONE,
   NEXT_PUBLIC_CLINIC_EMAIL,
   EMR_PRINT_PDF_TEMPLATE_COLORS,
-  
+
 } from "@/constants/ClinicDetails";
 
 const CLINIC = {
@@ -97,10 +97,78 @@ const pdfStyles = StyleSheet.create({
   footer: { position: "absolute", bottom: 20, left: SPACING.pagePadding, right: SPACING.pagePadding, textAlign: "center", fontSize: FONTS.footer, color: "#aaa", borderTop: `1pt solid ${COLORS.border}`, paddingTop: 6 },
 });
 
-export function EMRPdfTemplate({ record, logoUrl }: { record: any; logoUrl?: string }) {
-  const r = record;
-  const allMedicines: any[] = [];
-  r.prescriptions?.forEach((rx: any) => { rx.medicines?.forEach((m: any) => allMedicines.push(m)); });
+export interface PrintClinicDetails {
+  clinicName?: string;
+  clinicTagline?: string;
+  clinicAddress?: string;
+  phone?: string;
+  email?: string;
+  logoUrl?: string;
+}
+
+function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {
+  return {
+    name: details?.clinicName || NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
+    tagline: details?.clinicTagline || NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
+    address: details?.clinicAddress || NEXT_PUBLIC_CLINIC_ADDRESS || "123 Healthcare Avenue, Medical District",
+    phone: details?.phone || NEXT_PUBLIC_CLINIC_PHONE || "+92 300 1234567",
+    email: details?.email || NEXT_PUBLIC_CLINIC_EMAIL || "info@clinichms.com",
+    logo: details?.logoUrl || fallbackLogo || "",
+  };
+}
+
+function getDoctorName(doctor: any): string {
+  if (!doctor) return "";
+  if (typeof doctor === "string") return doctor;
+  if (doctor.user?.firstName) return `${doctor.user.firstName} ${doctor.user.lastName || ""}`.trim();
+  if (doctor.firstName) return `${doctor.firstName} ${doctor.lastName || ""}`.trim();
+  return "";
+}
+
+function getDoctorEmail(doctor: any): string {
+  if (!doctor) return "";
+  if (doctor.user?.email) return doctor.user.email;
+  if (doctor.email) return doctor.email;
+  return "";
+}
+
+function getMedName(m: any): string {
+  if (!m) return "—";
+  if (typeof m === "string") return m;
+  if (typeof m.medicine === "string") return m.medicine;
+  if (m.medicine?.name) return m.medicine.name;
+  if (m.medicineName) return m.medicineName;
+  if (m.name) return m.name;
+  return "—";
+}
+
+function getMedDuration(m: any): string {
+  if (!m) return "—";
+  if (typeof m.duration === "string") return m.duration;
+  if (m.duration?.value) return `${m.duration.value} ${m.duration.unit || "days"}`;
+  return "—";
+}
+
+function extractAllMedicines(prescriptions?: any[]): any[] {
+  const result: any[] = [];
+  if (Array.isArray(prescriptions)) {
+    prescriptions.forEach((rx: any) => {
+      if (rx?.medicines && Array.isArray(rx.medicines)) {
+        rx.medicines.forEach((m: any) => result.push(m));
+      } else if (rx) {
+        result.push(rx);
+      }
+    });
+  }
+  return result;
+}
+
+export function EMRPdfTemplate({ record, logoUrl, clinicDetails }: { record: any; logoUrl?: string; clinicDetails?: PrintClinicDetails }) {
+  const r = record || {};
+  const clinic = resolveClinic(clinicDetails, logoUrl);
+  const allMedicines = extractAllMedicines(r.prescriptions);
+  const doctorName = getDoctorName(r.doctor);
+  const doctorEmail = getDoctorEmail(r.doctor);
 
   const vitalEntries = Object.entries(r.vitals || {}).filter(([, v]) => v !== undefined && v !== null && v !== "");
   const vitalLabels: Record<string, string> = { temperature: "Temp", bloodPressureSystolic: "BP Sys", bloodPressureDiastolic: "BP Dia", heartRate: "HR", respiratoryRate: "RR", oxygenSaturation: "O2", weight: "Wt", height: "Ht", bloodSugar: "BS" };
@@ -119,12 +187,12 @@ export function EMRPdfTemplate({ record, logoUrl }: { record: any; logoUrl?: str
           {/* Header */}
           <View style={pdfStyles.header}>
             <View style={pdfStyles.headerLeft}>
-              <Text style={pdfStyles.clinicName}>{CLINIC.name}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.tagline}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.address}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.phone}</Text>
+              <Text style={pdfStyles.clinicName}>{clinic.name}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.tagline}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.address}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.phone}</Text>
             </View>
-            {logoUrl ? <View style={pdfStyles.headerCenter}><Image src={logoUrl} style={pdfStyles.logo} /></View> : <View style={{ width: 20 }} />}
+            {clinic.logo ? <View style={pdfStyles.headerCenter}><Image src={clinic.logo} style={pdfStyles.logo} /></View> : <View style={{ width: 20 }} />}
             <View style={pdfStyles.headerRight}>
               <Text style={pdfStyles.docTitle}>MEDICAL RECORD</Text>
               <Text style={pdfStyles.docId}>Visit: {formatDate(r.visitDate)}</Text>
@@ -142,23 +210,25 @@ export function EMRPdfTemplate({ record, logoUrl }: { record: any; logoUrl?: str
             </View>
             <View style={pdfStyles.sectionColRight}>
               <Text style={pdfStyles.sectionLabel}>Doctor</Text>
-              <Text style={pdfStyles.value}>Dr. {r.doctor?.user?.firstName} {r.doctor?.user?.lastName}</Text>
-              <Text style={pdfStyles.subValue}>{r.doctor?.user?.email}</Text>
+              <Text style={pdfStyles.value}>{doctorName ? `Dr. ${doctorName}` : "—"}</Text>
+              {doctorEmail && <Text style={pdfStyles.subValue}>{doctorEmail}</Text>}
             </View>
           </View>
 
           {/* Chief Complaint & Symptoms */}
-          <View style={pdfStyles.sectionBlock}>
-            <Text style={pdfStyles.sectionLabel}>Chief Complaint</Text>
-            <Text style={pdfStyles.textBlock}>{r.chiefComplaint}</Text>
-            {r.symptoms?.length > 0 && (
-              <View style={pdfStyles.badgeRow}>
-                {r.symptoms.map((s: string, i: number) => (
-                  <Text key={i} style={[pdfStyles.badge, pdfStyles.badgeSecondary, pdfStyles.badgeGap]}>{s}</Text>
-                ))}
-              </View>
-            )}
-          </View>
+          {r.chiefComplaint && (
+            <View style={pdfStyles.sectionBlock}>
+              <Text style={pdfStyles.sectionLabel}>Chief Complaint</Text>
+              <Text style={pdfStyles.textBlock}>{r.chiefComplaint}</Text>
+              {r.symptoms?.length > 0 && (
+                <View style={pdfStyles.badgeRow}>
+                  {r.symptoms.map((s: string, i: number) => (
+                    <Text key={i} style={[pdfStyles.badge, pdfStyles.badgeSecondary, pdfStyles.badgeGap]}>{s}</Text>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Vitals */}
           {vitalEntries.length > 0 && (
@@ -215,11 +285,11 @@ export function EMRPdfTemplate({ record, logoUrl }: { record: any; logoUrl?: str
               </View>
               {allMedicines.map((m: any, i: number) => (
                 <View key={i} style={pdfStyles.tableRow}>
-                  <Text style={[pdfStyles.tableCellBold, pdfStyles.colMed]}>{m.medicineName || "—"}</Text>
+                  <Text style={[pdfStyles.tableCellBold, pdfStyles.colMed]}>{getMedName(m)}</Text>
                   <Text style={[pdfStyles.tableCell, pdfStyles.colStr]}>{m.strength || "—"}</Text>
                   <Text style={[pdfStyles.tableCell, pdfStyles.colDos]}>{m.dosage || "—"}</Text>
                   <Text style={[pdfStyles.tableCell, pdfStyles.colFrq]}>{m.frequency || "—"}</Text>
-                  <Text style={[pdfStyles.tableCell, pdfStyles.colDur]}>{m.duration || "—"}</Text>
+                  <Text style={[pdfStyles.tableCell, pdfStyles.colDur]}>{getMedDuration(m)}</Text>
                   <Text style={[pdfStyles.tableCell, pdfStyles.colRte]}>{m.route || "—"}</Text>
                   <Text style={[pdfStyles.tableCell, pdfStyles.colQty]}>{m.quantity || "—"}</Text>
                   <Text style={[pdfStyles.tableCell, pdfStyles.colIns]}>{m.instructions || "—"}</Text>
@@ -237,17 +307,19 @@ export function EMRPdfTemplate({ record, logoUrl }: { record: any; logoUrl?: str
           )}
         </View>
 
-        <Text style={pdfStyles.footer} fixed>Computer-generated medical record • {CLINIC.name} • {formatDate(new Date().toISOString())}</Text>
+        <Text style={pdfStyles.footer} fixed>Computer-generated medical record • {clinic.name} • {formatDate(new Date().toISOString())}</Text>
       </Page>
     </Document>
   );
 }
 
 // ─── Print HTML Template ──────────────────────────────────
-export function generateEMRPrintHtml(record: any, logoUrl?: string): string {
-  const r = record;
-  const allMedicines: any[] = [];
-  r.prescriptions?.forEach((rx: any) => { rx.medicines?.forEach((m: any) => allMedicines.push(m)); });
+export function generateEMRPrintHtml(record: any, logoUrl?: string, clinicDetails?: PrintClinicDetails): string {
+  const r = record || {};
+  const clinic = resolveClinic(clinicDetails, logoUrl);
+  const allMedicines = extractAllMedicines(r.prescriptions);
+  const doctorName = getDoctorName(r.doctor);
+  const doctorEmail = getDoctorEmail(r.doctor);
 
   const vitalsHtml = Object.entries(r.vitals || {}).filter(([, v]) => v).map(([k, v]) => {
     const labels: Record<string, string> = { temperature: "Temp", bloodPressureSystolic: "BP Sys", bloodPressureDiastolic: "BP Dia", heartRate: "HR", respiratoryRate: "RR", oxygenSaturation: "O2", weight: "Wt", height: "Ht", bloodSugar: "BS" };
@@ -255,7 +327,7 @@ export function generateEMRPrintHtml(record: any, logoUrl?: string): string {
     return `<div class="vital"><span class="vital-label">${labels[k] || k}</span><span class="vital-value">${v} ${units[k] || ""}</span></div>`;
   }).join("");
 
-  const logoSvg = logoUrl ? `<div class="header-center"><img src="${logoUrl}" class="logo" /></div>` : "";
+  const logoSvg = clinic.logo ? `<div class="header-center"><img src="${clinic.logo}" class="logo" /></div>` : "";
 
   return `<!DOCTYPE html><html><head><title>EMR - ${r.patient?.firstName} ${r.patient?.lastName}</title><style>
     *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',system-ui,sans-serif;font-size:11px;color:${COLORS.text};padding:25px;padding-bottom:50px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -275,17 +347,17 @@ export function generateEMRPrintHtml(record: any, logoUrl?: string): string {
     @media print{body{padding:15px;padding-bottom:50px}}
   </style></head><body>
   <div class="header">
-    <div class="header-left"><div class="clinic-name">${CLINIC.name}</div><div class="clinic-sub">${CLINIC.tagline}</div><div class="clinic-details">${CLINIC.address}<br/>${CLINIC.phone}</div></div>
+    <div class="header-left"><div class="clinic-name">${clinic.name}</div><div class="clinic-sub">${clinic.tagline}</div><div class="clinic-details">${clinic.address}<br/>${clinic.phone}</div></div>
     ${logoSvg}
     <div class="header-right"><div class="doc-title">MEDICAL RECORD</div><div class="doc-sub">Visit: ${formatDate(r.visitDate)}</div>${r.followUpDate ? `<div class="doc-sub">Follow-up: ${formatDate(r.followUpDate)}</div>` : ""}</div>
   </div>
-  <div class="section"><div class="grid-2"><div><div class="label">Patient</div><div class="value">${r.patient?.firstName} ${r.patient?.lastName}</div><div style="font-size:9px;color:#666;">${r.patient?.patientId}</div><div style="font-size:9px;color:#666;">${r.patient?.phone}</div></div><div><div class="label">Doctor</div><div class="value">Dr. ${r.doctor?.user?.firstName} ${r.doctor?.user?.lastName}</div><div style="font-size:9px;color:#666;">${r.doctor?.user?.email}</div></div></div></div>
-  <div class="section"><div class="label">Chief Complaint</div><div class="value">${r.chiefComplaint}</div>${r.symptoms?.length > 0 ? `<div style="margin-top:6px;"><div class="label">Symptoms</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">${r.symptoms.map((s: string) => `<span class="badge badge-secondary">${s}</span>`).join("")}</div></div>` : ""}</div>
+  <div class="section"><div class="grid-2"><div><div class="label">Patient</div><div class="value">${r.patient?.firstName} ${r.patient?.lastName}</div><div style="font-size:9px;color:#666;">${r.patient?.patientId}</div><div style="font-size:9px;color:#666;">${r.patient?.phone}</div></div><div><div class="label">Doctor</div><div class="value">${doctorName ? `Dr. ${doctorName}` : "—"}</div>${doctorEmail ? `<div style="font-size:9px;color:#666;">${doctorEmail}</div>` : ""}</div></div></div>
+  ${r.chiefComplaint ? `<div class="section"><div class="label">Chief Complaint</div><div class="value">${r.chiefComplaint}</div>${r.symptoms?.length > 0 ? `<div style="margin-top:6px;"><div class="label">Symptoms</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">${r.symptoms.map((s: string) => `<span class="badge badge-secondary">${s}</span>`).join("")}</div></div>` : ""}</div>` : ""}
   ${vitalsHtml ? `<div class="section"><div class="label">Vitals</div><div class="vitals-grid">${vitalsHtml}</div></div>` : ""}
-  ${r.diagnosis?.length > 0 ? `<div class="section"><div class="label">Diagnosis</div>${r.diagnosis.map((d: any) => `<div class="diag-row"><span class="badge ${d.type==='primary'?'badge-primary':'badge-secondary'}">${d.type}</span><span style="font-size:10px;color:#333;">${d.description}</span>${d.icdCode?`<span style="font-size:9px;color:#888;">ICD: ${d.icdCode}</span>`:""}</div>`).join("")}</div>` : ""}
+  ${r.diagnosis?.length > 0 ? `<div class="section"><div class="label">Diagnosis</div>${r.diagnosis.map((d: any) => `<div class="diag-row"><span class="badge ${d.type === 'primary' ? 'badge-primary' : 'badge-secondary'}">${d.type}</span><span style="font-size:10px;color:#333;">${d.description}</span>${d.icdCode ? `<span style="font-size:9px;color:#888;">ICD: ${d.icdCode}</span>` : ""}</div>`).join("")}</div>` : ""}
   ${r.treatmentPlan ? `<div class="section"><div class="label">Treatment Plan</div><div class="value" style="white-space:pre-wrap;">${r.treatmentPlan}</div></div>` : ""}
-  ${allMedicines.length > 0 ? `<div class="section"><div class="label">Prescriptions</div><table class="rx-table"><thead><tr><th>Medicine</th><th>Strength</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Route</th><th>Qty</th><th>Instructions</th></tr></thead><tbody>${allMedicines.map((m: any) => `<tr><td>${m.medicineName || "—"}</td><td>${m.strength || "—"}</td><td>${m.dosage || "—"}</td><td>${m.frequency || "—"}</td><td>${m.duration || "—"}</td><td>${m.route || "—"}</td><td>${m.quantity || "—"}</td><td>${m.instructions || "—"}</td></tr>`).join("")}</tbody></table></div>` : ""}
+  ${allMedicines.length > 0 ? `<div class="section"><div class="label">Prescriptions</div><table class="rx-table"><thead><tr><th>Medicine</th><th>Strength</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Route</th><th>Qty</th><th>Instructions</th></tr></thead><tbody>${allMedicines.map((m: any) => `<tr><td>${getMedName(m)}</td><td>${m.strength || "—"}</td><td>${m.dosage || "—"}</td><td>${m.frequency || "—"}</td><td>${getMedDuration(m)}</td><td>${m.route || "—"}</td><td>${m.quantity || "—"}</td><td>${m.instructions || "—"}</td></tr>`).join("")}</tbody></table></div>` : ""}
   ${r.notes ? `<div class="section-last"><div class="label">Notes</div><div class="value" style="white-space:pre-wrap;">${r.notes}</div></div>` : ""}
-  <div class="footer">Computer-generated medical record • ${CLINIC.name} • ${formatDate(new Date().toISOString())}</div>
+  <div class="footer">Computer-generated medical record • ${clinic.name} • ${formatDate(new Date().toISOString())}</div>
   </body></html>`;
 }

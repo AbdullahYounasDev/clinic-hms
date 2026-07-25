@@ -22,6 +22,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { generateAppointmentPrintHtml,AppointmentPdfTemplate } from "../printTemplates/appointment-templates";
 import { pdf } from "@react-pdf/renderer";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 
 interface Appointment {
     _id: string;
@@ -49,6 +50,7 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
     const { data: session } = useSession();
     const router = useRouter();
     const qc = useQueryClient();
+    const clinicSettings = useClinicSettings();
     const [editOpen, setEditOpen] = useState(false);
     const [error, setError] = useState("");
     const [selectedStatus, setSelectedStatus] = useState("");
@@ -152,32 +154,32 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
         if (!data?.data) return;
         const printWindow = window.open("", "_blank");
         if (!printWindow) { toast.error("Please allow pop-ups to print."); return; }
-        printWindow.document.write(generateAppointmentPrintHtml(data.data, "/logo.png"));
+        printWindow.document.write(generateAppointmentPrintHtml(data.data, clinicSettings.logoUrl, clinicSettings));
         printWindow.document.close();
         printWindow.focus();
         setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
     };
 
     const handleDownloadPdf = async () => {
-    if (!data?.data) return;
-    setIsPdfLoading(true);
-    try {
-        const blob = await pdf(<AppointmentPdfTemplate appointment={data.data} logoUrl="/logo.png" />).toBlob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${data.data.appointmentId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success("PDF downloaded!");
-    } catch {
-        toast.error("Failed to generate PDF");
-    } finally {
-        setIsPdfLoading(false);
-    }
-};
+        if (!data?.data) return;
+        setIsPdfLoading(true);
+        try {
+            const blob = await pdf(<AppointmentPdfTemplate appointment={data.data} logoUrl={clinicSettings.logoUrl} clinicDetails={clinicSettings} />).toBlob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${data.data.appointmentId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            toast.success("PDF downloaded!");
+        } catch {
+            toast.error("Failed to generate PDF");
+        } finally {
+            setIsPdfLoading(false);
+        }
+    };
 
     if (isLoading) return (
         <div className="space-y-4">

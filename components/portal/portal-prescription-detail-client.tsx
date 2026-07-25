@@ -10,8 +10,11 @@ import { formatDate } from "@/lib/utils";
 import { PortalDetailHeader } from "./portal-detail-header";
 import { generatePrescriptionPrintHtml, PrescriptionPdfTemplate } from "@/components/printTemplates/prescription-print-template";
 
+import { useClinicSettings } from "@/components/providers/clinic-provider";
+
 export function PortalPrescriptionDetailClient({ prescriptionId }: { prescriptionId: string }) {
   const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const clinicSettings = useClinicSettings();
 
   const { data, isLoading } = useQuery({
     queryKey: ["portal-prescription", prescriptionId],
@@ -27,7 +30,7 @@ export function PortalPrescriptionDetailClient({ prescriptionId }: { prescriptio
       toast.error("Please allow pop-ups to print.");
       return;
     }
-    printWindow.document.write(generatePrescriptionPrintHtml(rx, "/logo.png"));
+    printWindow.document.write(generatePrescriptionPrintHtml(rx, clinicSettings.logoUrl, clinicSettings));
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
@@ -37,7 +40,7 @@ export function PortalPrescriptionDetailClient({ prescriptionId }: { prescriptio
     if (!rx) return;
     setIsPdfLoading(true);
     try {
-      const blob = await pdf(<PrescriptionPdfTemplate prescription={rx} logoUrl="/logo.png" />).toBlob();
+      const blob = await pdf(<PrescriptionPdfTemplate prescription={rx} logoUrl={clinicSettings.logoUrl} clinicDetails={clinicSettings} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

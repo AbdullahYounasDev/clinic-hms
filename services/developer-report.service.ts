@@ -1,3 +1,5 @@
+import connectDB from "@/lib/db/mongoose";
+import { Settings } from "@/models/operations.model";
 import { NEXT_PUBLIC_CLINIC_NAME } from "@/constants/ClinicDetails";
 
 export type DeveloperReportSeverity = "low" | "medium" | "high" | "critical";
@@ -19,6 +21,15 @@ export async function sendDeveloperReport(input: SendDeveloperReportInput) {
     throw new Error("Developer report system is not configured on this server.");
   }
 
+  let clinicName = NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS";
+  try {
+    await connectDB();
+    const s = await Settings.findOne({}).select("clinicName").lean();
+    if (s?.clinicName) clinicName = s.clinicName;
+  } catch {
+    // fallback
+  }
+
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -29,10 +40,10 @@ export async function sendDeveloperReport(input: SendDeveloperReportInput) {
       title: input.title,
       message: input.message,
       severity: input.severity,
-      source: input.source || `${NEXT_PUBLIC_CLINIC_NAME} / ClinicHMS`,
+      source: input.source || `${clinicName} / ClinicHMS`,
       stack: input.stack,
       meta: {
-        clinicName: NEXT_PUBLIC_CLINIC_NAME,
+        clinicName,
         ...input.meta,
       },
     }),

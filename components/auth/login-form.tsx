@@ -11,7 +11,12 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import Image from "next/image";
 import Link from "next/link";
-import { NEXT_PUBLIC_CLINIC_NAME, NEXT_PUBLIC_CLINIC_TAGLINE, NEXT_PUBLIC_LOGO_URL } from "@/constants/ClinicDetails";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
+import {
+  NEXT_PUBLIC_LOGO_URL,
+  NEXT_PUBLIC_CLINIC_NAME,
+  NEXT_PUBLIC_CLINIC_TAGLINE,
+} from "@/constants/ClinicDetails";
 
 const rotatingTexts = [
   "manage patients",
@@ -25,6 +30,7 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const { clinicName, clinicTagline, logoUrl } = useClinicSettings();
 
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,8 +44,8 @@ export function LoginForm() {
       setTimeout(() => {
         setCurrentTextIndex((prev) => (prev + 1) % rotatingTexts.length);
         setIsTextVisible(true);
-      }, 500);
-    }, 3000);
+      }, 300);
+    }, 3500);
 
     return () => clearInterval(interval);
   }, []);
@@ -71,7 +77,7 @@ export function LoginForm() {
       });
 
       if (result?.error) {
-        toast.error(result.error);
+        toast.error("Invalid email or password. Please try again.");
         setIsLoading(false);
         return;
       }
@@ -108,15 +114,27 @@ export function LoginForm() {
           {/* Logo */}
           <div className="mb-12">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-14 h-14 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center overflow-hidden">
-                {NEXT_PUBLIC_LOGO_URL ? (
-                  <img src={NEXT_PUBLIC_LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
+              <div className="w-14 h-14 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center overflow-hidden p-1">
+                {logoUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={logoUrl}
+                    alt="Logo"
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (!target.src.endsWith("/logo.png")) {
+                        target.src = "/logo.png";
+                      }
+                    }}
+                  />
                 ) : (
                   <Hospital className="w-8 h-8 text-white" />
                 )}
               </div>
               <div>
-                <h2 className="text-2xl font-bold tracking-tight">{NEXT_PUBLIC_CLINIC_NAME || 'ClinicHMS'}</h2>
+                <h2 className="text-2xl font-bold tracking-tight">{clinicName || "ClinicHMS"}</h2>
+                <p className="text-xs text-teal-200">{clinicTagline}</p>
               </div>
             </div>
           </div>
@@ -191,19 +209,30 @@ export function LoginForm() {
             <div className="relative z-10 h-full flex flex-col justify-between p-5">
               {/* Logo + Name */}
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/15 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/25 shadow-md overflow-hidden shrink-0">
-                  {NEXT_PUBLIC_LOGO_URL ? (
-                    <img src={NEXT_PUBLIC_LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
+                <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/20 shrink-0 overflow-hidden p-0.5">
+                  {logoUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={logoUrl}
+                      alt="Logo"
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (!target.src.endsWith("/logo.png")) {
+                          target.src = "/logo.png";
+                        }
+                      }}
+                    />
                   ) : (
                     <Hospital className="w-6 h-6 text-white" />
                   )}
                 </div>
                 <div>
                   <h1 className="text-lg font-bold text-white leading-tight">
-                    {NEXT_PUBLIC_CLINIC_NAME || 'ClinicHMS'}
+                    {clinicName || 'ClinicHMS'}
                   </h1>
-                  {NEXT_PUBLIC_CLINIC_TAGLINE && (
-                    <p className="text-teal-200 text-xs">{NEXT_PUBLIC_CLINIC_TAGLINE}</p>
+                  {clinicTagline && (
+                    <p className="text-teal-200 text-xs">{clinicTagline}</p>
                   )}
                 </div>
               </div>
@@ -347,15 +376,15 @@ export function LoginForm() {
               </button>
             </form>
 
-          <p className="text-center text-xs text-gray-500 mt-5">
-            Patient?{" "}
-            <Link href="/patient/login" className="text-teal-600 font-medium">Patient portal login</Link>
-          </p>
-        </div>
+            <p className="text-center text-xs text-gray-500 mt-5">
+              Patient?{" "}
+              <Link href="/patient/login" className="text-teal-600 font-medium">Patient portal login</Link>
+            </p>
+          </div>
 
           {/* Footer - Mobile/Tablet */}
           <p className="text-center text-gray-400 text-xs mt-6">
-            &copy; {new Date().getFullYear()} {NEXT_PUBLIC_CLINIC_NAME || 'ClinicHMS'}. All rights reserved.
+            &copy; {new Date().getFullYear()} {clinicName || 'ClinicHMS'}. All rights reserved.
           </p>
         </div>
       </div>

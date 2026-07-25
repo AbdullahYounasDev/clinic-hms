@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { NotificationsPanel } from "./notifications-panel";
 import { DeveloperReportModal } from "./developer-report-modal";
 import { useSidebar } from "../sidebar-context";
-import { NEXT_PUBLIC_CLINIC_NAME, NEXT_PUBLIC_LOGO_URL } from "@/constants/ClinicDetails";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 
 interface HeaderProps { session: Session }
 
@@ -18,6 +18,7 @@ export function Header({ session }: HeaderProps) {
   const [reportOpen, setReportOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const { toggleMobile } = useSidebar();
+  const { clinicName, logoUrl } = useClinicSettings();
   const canSendDeveloperReport =
     session.user.isSuperAdmin ||
     (session.user.permissions || []).includes("developer_reports:create");
@@ -49,15 +50,26 @@ export function Header({ session }: HeaderProps) {
         </button>
 
         <div className="flex items-center gap-2 min-w-0 flex-1 md:hidden">
-          {NEXT_PUBLIC_LOGO_URL ? (
-            <img src={NEXT_PUBLIC_LOGO_URL} alt="Logo" className="w-7 h-7 rounded-lg object-cover shrink-0" />
+          {logoUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={logoUrl}
+              alt="Logo"
+              className="w-7 h-7 rounded-lg object-contain shrink-0"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (!target.src.endsWith("/logo.png")) {
+                  target.src = "/logo.png";
+                }
+              }}
+            />
           ) : (
             <div className="w-7 h-7 rounded-lg bg-teal-600 flex items-center justify-center shrink-0">
               <Hospital className="w-4 h-4 text-white" />
             </div>
           )}
           <span className="font-semibold text-sm text-gray-900 line-clamp-2 leading-snug break-words">
-            {NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS"}
+            {clinicName || "ClinicHMS"}
           </span>
         </div>
 

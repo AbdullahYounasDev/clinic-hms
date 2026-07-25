@@ -1,4 +1,6 @@
 import type { MetadataRoute } from "next";
+import connectDB from "@/lib/db/mongoose";
+import { Settings } from "@/models/operations.model";
 import {
   NEXT_PUBLIC_CLINIC_NAME,
   NEXT_PUBLIC_CLINIC_TAGLINE,
@@ -10,7 +12,27 @@ import {
   PWA_ICON_512_URL,
 } from "@/constants/ClinicDetails";
 
-export default function manifest(): MetadataRoute.Manifest {
+async function getClinicInfo() {
+  try {
+    await connectDB();
+    const s = await Settings.findOne({}).select("clinicName clinicTagline logo").lean();
+    return {
+      name: s?.clinicName || NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
+      tagline: s?.clinicTagline || NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
+      logo: s?.logo || NEXT_PUBLIC_LOGO_URL || "/logo.png",
+    };
+  } catch {
+    return {
+      name: NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
+      tagline: NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
+      logo: NEXT_PUBLIC_LOGO_URL || "/logo.png",
+    };
+  }
+}
+
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const clinic = await getClinicInfo();
+
   const icons: MetadataRoute.Manifest["icons"] = [
     {
       src: PWA_ICON_192_URL,
@@ -32,9 +54,9 @@ export default function manifest(): MetadataRoute.Manifest {
     },
   ];
 
-  if (NEXT_PUBLIC_LOGO_URL) {
+  if (clinic.logo) {
     icons.push({
-      src: NEXT_PUBLIC_LOGO_URL,
+      src: clinic.logo,
       sizes: "512x512",
       type: "image/png",
       purpose: "any",
@@ -43,9 +65,9 @@ export default function manifest(): MetadataRoute.Manifest {
 
   return {
     id: PWA_START_URL,
-    name: `${NEXT_PUBLIC_CLINIC_NAME} — ${NEXT_PUBLIC_CLINIC_TAGLINE}`,
-    short_name: NEXT_PUBLIC_CLINIC_NAME,
-    description: NEXT_PUBLIC_CLINIC_TAGLINE,
+    name: `${clinic.name} — ${clinic.tagline}`,
+    short_name: clinic.name,
+    description: clinic.tagline,
     start_url: PWA_START_URL,
     scope: PWA_START_URL,
     display: "standalone",

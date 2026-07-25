@@ -135,7 +135,7 @@ export function EMRDetailClient({ emrId }: { emrId: string }) {
     const handlePrint = () => {
         const printWindow = window.open("", "_blank");
         if (!printWindow) { toast.error("Please allow pop-ups to print."); return; }
-        printWindow.document.write(generateEMRPrintHtml(record, "/logo.png"));
+        printWindow.document.write(generateEMRPrintHtml(record, clinicSettings.logoUrl, clinicSettings));
         printWindow.document.close();
         printWindow.focus();
         setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
@@ -144,7 +144,7 @@ export function EMRDetailClient({ emrId }: { emrId: string }) {
     const handleDownloadPdf = async () => {
         setIsPdfLoading(true);
         try {
-            const blob = await pdf(<EMRPdfTemplate record={record} logoUrl="/logo.png" />).toBlob();
+            const blob = await pdf(<EMRPdfTemplate record={record} logoUrl={clinicSettings.logoUrl} clinicDetails={clinicSettings} />).toBlob();
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;

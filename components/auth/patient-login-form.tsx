@@ -11,12 +11,13 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import Link from "next/link";
 import Image from "next/image";
-import { NEXT_PUBLIC_CLINIC_NAME, NEXT_PUBLIC_LOGO_URL } from "@/constants/ClinicDetails";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 
 export function PatientLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/portal";
+  const { clinicName, logoUrl } = useClinicSettings();
 
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,33 +42,46 @@ export function PatientLoginForm() {
       });
 
       if (result?.error) {
-        toast.error(result.error);
+        toast.error("Invalid email, phone, or password.");
         setIsLoading(false);
         return;
       }
 
-      toast.success("Welcome back!");
-      router.push(callbackUrl.startsWith("/portal") ? callbackUrl : "/portal");
-      router.refresh();
+      toast.success("Welcome back! Redirecting...");
+      setTimeout(() => {
+        router.push(callbackUrl);
+        router.refresh();
+      }, 800);
     } catch {
-      toast.error("An unexpected error occurred.");
+      toast.error("Something went wrong. Try again.");
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-teal-50 flex items-center justify-center overflow-hidden">
-            {NEXT_PUBLIC_LOGO_URL ? (
-              <img src={NEXT_PUBLIC_LOGO_URL} alt="" className="w-full h-full object-cover" />
+          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-teal-50 flex items-center justify-center overflow-hidden p-1">
+            {logoUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={logoUrl}
+                alt=""
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.endsWith("/logo.png")) {
+                    target.src = "/logo.png";
+                  }
+                }}
+              />
             ) : (
               <Hospital className="w-8 h-8 text-teal-600" />
             )}
           </div>
           <h1 className="text-xl font-bold text-gray-900">Patient Portal</h1>
-          <p className="text-xs text-gray-500 mt-1">{NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS"}</p>
+          <p className="text-xs text-gray-500 mt-1">{clinicName || "ClinicHMS"}</p>
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100">

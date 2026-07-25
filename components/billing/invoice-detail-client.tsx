@@ -120,7 +120,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
       toast.error("Please allow pop-ups to print the invoice.");
       return;
     }
-    printWindow.document.write(generateInvoicePrintHtml(inv, "/logo.png"));
+    printWindow.document.write(generateInvoicePrintHtml(inv, clinicSettings.logoUrl, clinicSettings));
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
@@ -130,7 +130,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     if (!inv) return;
     setIsPdfLoading(true);
     try {
-      const blob = await pdf(<InvoicePdfTemplate invoice={inv} logoUrl="/logo.png" />).toBlob();
+      const blob = await pdf(<InvoicePdfTemplate invoice={inv} logoUrl={clinicSettings.logoUrl} clinicDetails={clinicSettings} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

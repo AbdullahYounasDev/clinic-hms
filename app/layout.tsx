@@ -22,25 +22,49 @@ const poppins = Poppins({
   display: 'swap',
 })
 
-const CLINIC_NAME = NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS";
-const CLINIC_TAGLINE = NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System";
-const LOGO_URL = NEXT_PUBLIC_LOGO_URL || "";
+import connectDB from "@/lib/db/mongoose";
+import { Settings } from "@/models/operations.model";
 
-export const metadata: Metadata = {
-  title: {
-    template: `%s | ${CLINIC_NAME}`,
-    default: `${CLINIC_NAME} — ${CLINIC_TAGLINE}`,
-  },
-  description: CLINIC_TAGLINE,
-  applicationName: CLINIC_NAME,
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: CLINIC_NAME,
-  },
-  themeColor: NEXT_PUBLIC_THEME_COLOR,
-  robots: "noindex, nofollow",
-};
+async function getClinicInfo() {
+  try {
+    await connectDB();
+    const settings = await Settings.findOne({}).select("clinicName clinicTagline logo").lean();
+    return {
+      name: settings?.clinicName || NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
+      tagline: settings?.clinicTagline || NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
+      logo: settings?.logo || NEXT_PUBLIC_LOGO_URL || "/logo.png",
+    };
+  } catch {
+    return {
+      name: NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
+      tagline: NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
+      logo: NEXT_PUBLIC_LOGO_URL || "/logo.png",
+    };
+  }
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const clinic = await getClinicInfo();
+
+  return {
+    title: {
+      template: `%s | ${clinic.name}`,
+      default: `${clinic.name} — ${clinic.tagline}`,
+    },
+    description: clinic.tagline,
+    applicationName: clinic.name,
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "default",
+      title: clinic.name,
+    },
+    themeColor: NEXT_PUBLIC_THEME_COLOR,
+    robots: "noindex, nofollow",
+  };
+}
+
+const CLINIC_NAME = NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS";
+const LOGO_URL = NEXT_PUBLIC_LOGO_URL || "/logo.png";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -48,16 +72,20 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const clinic = await getClinicInfo();
+  const activeLogo = clinic.logo || LOGO_URL;
+  const activeName = clinic.name || CLINIC_NAME;
+
   return (
     <html lang="en" className={poppins.variable}>
       <head>
-         {LOGO_URL && <link rel="icon" href={LOGO_URL} />}
-        {LOGO_URL && <link rel="shortcut icon" href={LOGO_URL} />}
-        {LOGO_URL && <link rel="apple-touch-icon" href={LOGO_URL} />}
+        {activeLogo && <link rel="icon" href={activeLogo} />}
+        {activeLogo && <link rel="shortcut icon" href={activeLogo} />}
+        {activeLogo && <link rel="apple-touch-icon" href={activeLogo} />}
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content={CLINIC_NAME} />
+        <meta name="apple-mobile-web-app-title" content={activeName} />
         <meta name="theme-color" content={NEXT_PUBLIC_THEME_COLOR} />
         <script dangerouslySetInnerHTML={{
           __html: `

@@ -20,9 +20,9 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
-import { NEXT_PUBLIC_CLINIC_NAME, NEXT_PUBLIC_LOGO_URL } from "@/constants/ClinicDetails";
 import { usePortalSidebar } from "./portal-sidebar-context";
 import { useState, useEffect } from "react";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 
 const NAV = [
   { label: "Overview", href: "/portal", icon: LayoutDashboard },
@@ -72,6 +72,7 @@ export function PortalShell({
   children: React.ReactNode;
 }) {
   const { mobileOpen, setMobileOpen, toggleMobile } = usePortalSidebar();
+  const { clinicName, logoUrl } = useClinicSettings();
   const isChangePasswordOnly = session.user.mustChangePassword;
   const [isDark, setIsDark] = useState(false);
 
@@ -110,16 +111,27 @@ export function PortalShell({
             )}
           >
             <div className="p-4 border-b border-gray-200 flex items-center gap-2 relative">
-              <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center overflow-hidden shrink-0">
-                {NEXT_PUBLIC_LOGO_URL ? (
-                  <img src={NEXT_PUBLIC_LOGO_URL} alt="" className="w-full h-full object-cover" />
+              <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center overflow-hidden shrink-0 p-0.5">
+                {logoUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={logoUrl}
+                    alt=""
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (!target.src.endsWith("/logo.png")) {
+                        target.src = "/logo.png";
+                      }
+                    }}
+                  />
                 ) : (
                   <Hospital className="w-5 h-5 text-teal-600" />
                 )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-gray-900 truncate">
-                  {NEXT_PUBLIC_CLINIC_NAME || "Patient Portal"}
+                  {clinicName || "Patient Portal"}
                 </p>
                 <p className="text-[10px] text-gray-400 truncate">Patient Portal</p>
               </div>

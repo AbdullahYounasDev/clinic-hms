@@ -13,8 +13,11 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { PortalDetailHeader } from "./portal-detail-header";
 import { generateInvoicePrintHtml, InvoicePdfTemplate } from "@/components/printTemplates/invoice-print-template";
 
+import { useClinicSettings } from "@/components/providers/clinic-provider";
+
 export function PortalBillingDetailClient({ invoiceId }: { invoiceId: string }) {
   const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const clinicSettings = useClinicSettings();
 
   const { data, isLoading } = useQuery({
     queryKey: ["portal-invoice", invoiceId],
@@ -30,7 +33,7 @@ export function PortalBillingDetailClient({ invoiceId }: { invoiceId: string }) 
       toast.error("Please allow pop-ups to print.");
       return;
     }
-    printWindow.document.write(generateInvoicePrintHtml(inv, "/logo.png"));
+    printWindow.document.write(generateInvoicePrintHtml(inv, clinicSettings.logoUrl, clinicSettings));
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
@@ -40,7 +43,7 @@ export function PortalBillingDetailClient({ invoiceId }: { invoiceId: string }) 
     if (!inv) return;
     setIsPdfLoading(true);
     try {
-      const blob = await pdf(<InvoicePdfTemplate invoice={inv} logoUrl="/logo.png" />).toBlob();
+      const blob = await pdf(<InvoicePdfTemplate invoice={inv} logoUrl={clinicSettings.logoUrl} clinicDetails={clinicSettings} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

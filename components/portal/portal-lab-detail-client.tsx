@@ -49,8 +49,11 @@ const STATUS_MESSAGES: Record<string, { title: string; description: string }> = 
   },
 };
 
+import { useClinicSettings } from "@/components/providers/clinic-provider";
+
 export function PortalLabDetailClient({ labTestId }: { labTestId: string }) {
   const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const clinicSettings = useClinicSettings();
 
   const { data, isLoading } = useQuery({
     queryKey: ["portal-lab-detail", labTestId],
@@ -69,7 +72,7 @@ export function PortalLabDetailClient({ labTestId }: { labTestId: string }) {
       toast.error("Please allow pop-ups to print.");
       return;
     }
-    printWindow.document.write(generateLabReportPrintHtml(test, report, "/logo.png"));
+    printWindow.document.write(generateLabReportPrintHtml(test, report, clinicSettings.logoUrl, clinicSettings));
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
@@ -79,7 +82,7 @@ export function PortalLabDetailClient({ labTestId }: { labTestId: string }) {
     if (!test || !report) return;
     setIsPdfLoading(true);
     try {
-      const blob = await pdf(<LabReportPdfTemplate test={test} report={report} logoUrl="/logo.png" />).toBlob();
+      const blob = await pdf(<LabReportPdfTemplate test={test} report={report} logoUrl={clinicSettings.logoUrl} clinicDetails={clinicSettings} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

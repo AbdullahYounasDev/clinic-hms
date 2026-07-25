@@ -1,9 +1,9 @@
 // components/appointments/appointment-templates.ts
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
-import { 
-  NEXT_PUBLIC_CLINIC_NAME, 
-  NEXT_PUBLIC_CLINIC_TAGLINE, 
-  NEXT_PUBLIC_CLINIC_ADDRESS, 
+import {
+  NEXT_PUBLIC_CLINIC_NAME,
+  NEXT_PUBLIC_CLINIC_TAGLINE,
+  NEXT_PUBLIC_CLINIC_ADDRESS,
   NEXT_PUBLIC_CLINIC_PHONE,
   APPOINTMENT_PRINT_PDF_TEMPLATE_COLORS,
 } from "@/constants/ClinicDetails";
@@ -75,9 +75,29 @@ const pdfStyles = StyleSheet.create({
   footer: { position: "absolute", bottom: 20, left: SPACING.pagePadding, right: SPACING.pagePadding, textAlign: "center", fontSize: 7, color: "#aaa", borderTop: `1pt solid ${COLORS.border}`, paddingTop: 6 },
 });
 
+export interface PrintClinicDetails {
+  clinicName?: string;
+  clinicTagline?: string;
+  clinicAddress?: string;
+  phone?: string;
+  email?: string;
+  logoUrl?: string;
+}
+
+function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {
+  return {
+    name: details?.clinicName || NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
+    tagline: details?.clinicTagline || NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
+    address: details?.clinicAddress || NEXT_PUBLIC_CLINIC_ADDRESS || "123 Healthcare Avenue, Medical District",
+    phone: details?.phone || NEXT_PUBLIC_CLINIC_PHONE || "+92 300 1234567",
+    logo: details?.logoUrl || fallbackLogo || "",
+  };
+}
+
 // ─── PDF Template ─────────────────────────────────────────
-export function AppointmentPdfTemplate({ appointment, logoUrl }: { appointment: any; logoUrl?: string }) {
+export function AppointmentPdfTemplate({ appointment, logoUrl, clinicDetails }: { appointment: any; logoUrl?: string; clinicDetails?: PrintClinicDetails }) {
   const a = appointment;
+  const clinic = resolveClinic(clinicDetails, logoUrl);
   const statusColors: Record<string, { bg: string; text: string }> = {
     scheduled: { bg: COLORS.scheduledBg, text: COLORS.scheduledText },
     completed: { bg: COLORS.completedBg, text: COLORS.completedText },
@@ -95,13 +115,13 @@ export function AppointmentPdfTemplate({ appointment, logoUrl }: { appointment: 
           {/* Header */}
           <View style={pdfStyles.header}>
             <View style={pdfStyles.headerLeft}>
-              <Text style={pdfStyles.clinicName}>{CLINIC.name}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.tagline}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.address}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.phone}</Text>
+              <Text style={pdfStyles.clinicName}>{clinic.name}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.tagline}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.address}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.phone}</Text>
             </View>
-            {logoUrl ? (
-              <View style={pdfStyles.headerCenter}><Image src={logoUrl} style={pdfStyles.logo} /></View>
+            {clinic.logo ? (
+              <View style={pdfStyles.headerCenter}><Image src={clinic.logo} style={pdfStyles.logo} /></View>
             ) : <View style={{ width: 20 }} />}
             <View style={pdfStyles.headerRight}>
               <Text style={pdfStyles.docTitle}>APPOINTMENT SLIP</Text>
@@ -162,7 +182,7 @@ export function AppointmentPdfTemplate({ appointment, logoUrl }: { appointment: 
 
         {/* Footer */}
         <Text style={pdfStyles.footer} fixed>
-          This is a computer-generated appointment slip • {CLINIC.name}
+          This is a computer-generated appointment slip • {clinic.name}
         </Text>
       </Page>
     </Document>
@@ -170,8 +190,9 @@ export function AppointmentPdfTemplate({ appointment, logoUrl }: { appointment: 
 }
 
 // ─── Print HTML Template ──────────────────────────────────
-export function generateAppointmentPrintHtml(appointment: any, logoUrl?: string): string {
+export function generateAppointmentPrintHtml(appointment: any, logoUrl?: string, clinicDetails?: PrintClinicDetails): string {
   const a = appointment;
+  const clinic = resolveClinic(clinicDetails, logoUrl);
   const statusColors: Record<string, { bg: string; text: string }> = {
     scheduled: { bg: COLORS.scheduledBg, text: COLORS.scheduledText },
     completed: { bg: COLORS.completedBg, text: COLORS.completedText },
@@ -181,9 +202,9 @@ export function generateAppointmentPrintHtml(appointment: any, logoUrl?: string)
     no_show: { bg: COLORS.noShowBg, text: COLORS.noShowText },
   };
   const sc = statusColors[a.status] || statusColors.scheduled;
-  const logoSvg = logoUrl ? `<div class="header-center"><img src="${logoUrl}" class="logo" /></div>` : "";
+  const logoSvg = clinic.logo ? `<div class="header-center"><img src="${clinic.logo}" class="logo" /></div>` : "";
 
-  return `<!DOCTYPE html><html><head><title>${a.appointmentId} - ${CLINIC.name}</title><style>
+  return `<!DOCTYPE html><html><head><title>${a.appointmentId} - ${clinic.name}</title><style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;color:${COLORS.text};padding:25px;padding-bottom:50px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid ${COLORS.primary}}
@@ -198,7 +219,7 @@ export function generateAppointmentPrintHtml(appointment: any, logoUrl?: string)
     @media print{body{padding:15px;padding-bottom:50px}}
   </style></head><body>
   <div class="header">
-    <div class="header-left"><div class="clinic-name">${CLINIC.name}</div><div class="clinic-sub">${CLINIC.tagline}</div><div class="clinic-details">${CLINIC.address}<br/>${CLINIC.phone}</div></div>
+    <div class="header-left"><div class="clinic-name">${clinic.name}</div><div class="clinic-sub">${clinic.tagline}</div><div class="clinic-details">${clinic.address}<br/>${clinic.phone}</div></div>
     ${logoSvg}
     <div class="header-right"><div class="doc-title">APPOINTMENT SLIP</div><div class="doc-id">${a.appointmentId}</div><div class="status-badge">${a.status.replace(/_/g, " ").toUpperCase()}</div></div>
   </div>
@@ -212,6 +233,6 @@ export function generateAppointmentPrintHtml(appointment: any, logoUrl?: string)
   </div>
   ${a.chiefComplaint ? `<div class="section"><div class="label">Chief Complaint</div><div style="font-size:10px;color:#333;">${a.chiefComplaint}</div></div>` : ''}
   ${a.notes ? `<div class="section"><div class="label">Notes</div><div style="font-size:10px;color:#333;">${a.notes}</div></div>` : ''}
-  <div class="footer">This is a computer-generated appointment slip • ${CLINIC.name}</div>
+  <div class="footer">This is a computer-generated appointment slip • ${clinic.name}</div>
   </body></html>`;
 }

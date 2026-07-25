@@ -441,12 +441,30 @@ export const updateExpenseSchema = z.object({
 });
 
 
-// ─── SETTINGS SCHEMAS ─────────────────────────────────────
+export const workingDaySchema = z.object({
+  day: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+  openingTime: z.string().min(1, "Opening time is required"),
+  breakStart: z.string().optional(),
+  breakEnd: z.string().optional(),
+  closingTime: z.string().min(1, "Closing time is required"),
+  isOpen: z.boolean().optional(),
+});
+
+export const closingDaySchema = z.object({
+  _id: z.string().optional(),
+  date: z.string().min(1, "Date is required"),
+  reason: z.string().min(1, "Reason is required"),
+});
+
 export const updateSettingsSchema = z.object({
   clinicName: z.string().min(1).optional(),
+  clinicTagline: z.string().optional(),
   clinicType: z.enum(["clinic", "hospital", "diagnostic_center"]).optional(),
+  logo: z.string().optional(),
+  logoPublicId: z.string().optional(),
+  clinicAddress: z.string().optional(),
   phone: z.string().optional(),
-  email: z.string().email().optional(),
+  email: z.string().email().optional().or(z.literal("")),
   website: z.string().url().optional().or(z.literal("")),
   registrationNumber: z.string().optional(),
   taxId: z.string().optional(),
@@ -454,6 +472,8 @@ export const updateSettingsSchema = z.object({
   timezone: z.string().optional(),
   invoicePrefix: z.string().optional(),
   appointmentDuration: z.number().min(5).max(120).optional(),
+  workingDays: z.array(workingDaySchema).optional(),
+  closingDays: z.array(closingDaySchema).optional(),
 });
 
 export const createReportSchema = z.object({

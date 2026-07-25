@@ -1,9 +1,9 @@
 // components/lab/lab-report-templates.tsx
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
-import { 
-  NEXT_PUBLIC_CLINIC_NAME, 
-  NEXT_PUBLIC_CLINIC_TAGLINE, 
-  NEXT_PUBLIC_CLINIC_ADDRESS, 
+import {
+  NEXT_PUBLIC_CLINIC_NAME,
+  NEXT_PUBLIC_CLINIC_TAGLINE,
+  NEXT_PUBLIC_CLINIC_ADDRESS,
   NEXT_PUBLIC_CLINIC_PHONE,
   LAB_PRINT_PDF_TEMPLATE_COLORS,
 } from "@/constants/ClinicDetails";
@@ -124,21 +124,41 @@ const pdfStyles = StyleSheet.create({
   noResults: { fontSize: 9, color: "#999", textAlign: "center", marginTop: 30 },
 });
 
+export interface PrintClinicDetails {
+  clinicName?: string;
+  clinicTagline?: string;
+  clinicAddress?: string;
+  phone?: string;
+  email?: string;
+  logoUrl?: string;
+}
+
+function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {
+  return {
+    name: details?.clinicName || NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
+    tagline: details?.clinicTagline || NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
+    address: details?.clinicAddress || NEXT_PUBLIC_CLINIC_ADDRESS || "123 Healthcare Avenue, Medical District",
+    phone: details?.phone || NEXT_PUBLIC_CLINIC_PHONE || "+92 300 1234567",
+    logo: details?.logoUrl || fallbackLogo || "",
+  };
+}
+
 // ─── PDF Template ─────────────────────────────────────────
-export function LabReportPdfTemplate({ test, report, logoUrl }: { test: any; report?: any; logoUrl?: string }) {
+export function LabReportPdfTemplate({ test, report, logoUrl, clinicDetails }: { test: any; report?: any; logoUrl?: string; clinicDetails?: PrintClinicDetails }) {
+  const clinic = resolveClinic(clinicDetails, logoUrl);
   return (
     <Document>
       <Page size="A4" style={pdfStyles.page}>
         <View style={pdfStyles.contentWrapper}>
           <View style={pdfStyles.header}>
             <View style={pdfStyles.headerLeft}>
-              <Text style={pdfStyles.clinicName}>{CLINIC.name}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.tagline}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.address}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.phone}</Text>
+              <Text style={pdfStyles.clinicName}>{clinic.name}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.tagline}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.address}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.phone}</Text>
             </View>
             <View style={pdfStyles.headerCenter}>
-              {logoUrl ? <Image src={logoUrl} style={pdfStyles.logo} /> : <View style={{ width: 100, height: 100 }} />}
+              {clinic.logo ? <Image src={clinic.logo} style={pdfStyles.logo} /> : <View style={{ width: 100, height: 100 }} />}
             </View>
             <View style={pdfStyles.headerRight}>
               <Text style={pdfStyles.docTitle}>LABORATORY REPORT</Text>
@@ -158,48 +178,67 @@ export function LabReportPdfTemplate({ test, report, logoUrl }: { test: any; rep
           </View>
           <View style={pdfStyles.resultsSection}>
             <Text style={pdfStyles.resultsLabel}>Test Results</Text>
-            {test.results?.length > 0 ? test.results.map((result: any, i: number) => (
-              <View key={i} style={pdfStyles.testBlock}>
-                <Text style={pdfStyles.testName}>{result.testName}</Text>
-                <View style={pdfStyles.tableHeader}>
-                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.colParam]}>Parameter</Text>
-                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.colResult]}>Result</Text>
-                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.colUnit]}>Unit</Text>
-                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.colRef]}>Ref Range</Text>
-                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.colFlag]}>Flag</Text>
-                </View>
-                {result.parameterResults?.map((pr: any, j: number) => (
-                  <View key={j} style={[pdfStyles.tableRow, pr.isAbnormal && pdfStyles.tableRowAbnormal]}>
-                    <Text style={[pdfStyles.tableCellBold, pdfStyles.colParam]}>{pr.parameterName}</Text>
-                    <Text style={[pdfStyles.tableCell, pdfStyles.colResult, pr.isAbnormal && pdfStyles.tableCellAbnormal]}>{formatValue(pr.value)}</Text>
-                    <Text style={[pdfStyles.tableCell, pdfStyles.colUnit]}>{pr.unit || "—"}</Text>
-                    <Text style={[pdfStyles.tableCell, pdfStyles.colRef]}>{pr.referenceRange || "—"}</Text>
-                    <Text style={[pdfStyles.colFlag, pr.isAbnormal ? pdfStyles.flagAbnormal : pdfStyles.flagNormal]}>{pr.isAbnormal ? "Abnormal" : "Normal"}</Text>
+            {test.results?.length > 0 ? (
+              test.results.map((r: any, idx: number) => (
+                <View key={idx} style={pdfStyles.testBlock}>
+                  <Text style={pdfStyles.testName}>{r.testName}</Text>
+                  <View style={pdfStyles.tableHeader}>
+                    <Text style={[pdfStyles.tableHeaderText, pdfStyles.colParam]}>Parameter</Text>
+                    <Text style={[pdfStyles.tableHeaderText, pdfStyles.colResult]}>Result</Text>
+                    <Text style={[pdfStyles.tableHeaderText, pdfStyles.colUnit]}>Unit</Text>
+                    <Text style={[pdfStyles.tableHeaderText, pdfStyles.colRef]}>Ref Range</Text>
+                    <Text style={[pdfStyles.tableHeaderText, pdfStyles.colFlag]}>Flag</Text>
                   </View>
-                ))}
-                {result.notes && <Text style={pdfStyles.testNotes}>Notes: {result.notes}</Text>}
-              </View>
-            )) : <Text style={pdfStyles.noResults}>No results recorded</Text>}
+                  {r.parameterResults?.map((pr: any, pIdx: number) => (
+                    <View key={pIdx} style={[pdfStyles.tableRow, pr.isAbnormal ? pdfStyles.tableRowAbnormal : {}]}>
+                      <Text style={[pdfStyles.tableCellBold, pdfStyles.colParam]}>{pr.parameterName}</Text>
+                      <Text style={[pdfStyles.tableCell, pdfStyles.colResult, pr.isAbnormal ? pdfStyles.tableCellAbnormal : {}]}>{formatValue(pr.value)}</Text>
+                      <Text style={[pdfStyles.tableCell, pdfStyles.colUnit]}>{pr.unit || "—"}</Text>
+                      <Text style={[pdfStyles.tableCell, pdfStyles.colRef]}>{pr.referenceRange || "—"}</Text>
+                      <Text style={[pdfStyles.colFlag, pr.isAbnormal ? pdfStyles.flagAbnormal : pdfStyles.flagNormal]}>{pr.isAbnormal ? "Abnormal" : "Normal"}</Text>
+                    </View>
+                  ))}
+                  {r.notes && <Text style={pdfStyles.testNotes}>Notes: {r.notes}</Text>}
+                </View>
+              ))
+            ) : (
+              <Text style={pdfStyles.noResults}>No results recorded</Text>
+            )}
           </View>
-          {report && <View style={pdfStyles.spacer} />}
+
+          <View style={pdfStyles.spacer} />
+
           {report && (
             <View style={pdfStyles.technicianSection}>
               <View style={pdfStyles.technicianRow}>
-                <View style={{ flex: 1 }}><Text style={pdfStyles.sectionLabel}>Performed by</Text><Text style={pdfStyles.value}>{report.labTechnician?.name}</Text></View>
-                <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={pdfStyles.sectionLabel}>Signature</Text><Text style={pdfStyles.signatureText}>{report.labTechnician?.signature}</Text></View>
+                <View>
+                  <Text style={pdfStyles.sectionLabel}>Performed by</Text>
+                  <Text style={pdfStyles.value}>{report.labTechnician?.name}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={pdfStyles.sectionLabel}>Signature</Text>
+                  <Text style={pdfStyles.signatureText}>{report.labTechnician?.signature}</Text>
+                </View>
               </View>
-              {report.additionalNotes && <View style={pdfStyles.additionalNotesSection}><Text style={pdfStyles.sectionLabel}>Additional Notes</Text><Text style={pdfStyles.additionalNotesText}>{report.additionalNotes}</Text></View>}
+              {report.additionalNotes && (
+                <View style={pdfStyles.additionalNotesSection}>
+                  <Text style={pdfStyles.sectionLabel}>Additional Notes</Text>
+                  <Text style={pdfStyles.additionalNotesText}>{report.additionalNotes}</Text>
+                </View>
+              )}
             </View>
           )}
+
+          <Text style={pdfStyles.footer} fixed>Computer-generated laboratory report • {clinic.name} • {formatDate(new Date().toISOString())}</Text>
         </View>
-        <Text style={pdfStyles.footer} fixed>Computer-generated laboratory report • {CLINIC.name} • {formatDate(new Date().toISOString())}</Text>
       </Page>
     </Document>
   );
 }
 
 // ─── Print HTML Template ──────────────────────────────────
-export function generateLabReportPrintHtml(test: any, report?: any, logoUrl?: string): string {
+export function generateLabReportPrintHtml(test: any, report?: any, logoUrl?: string, clinicDetails?: PrintClinicDetails): string {
+  const clinic = resolveClinic(clinicDetails, logoUrl);
   const resultsHtml = test.results?.map((result: any) => `
     <div class="test-section"><div class="test-name">${result.testName}</div>
     <table class="params-table"><thead><tr><th>Parameter</th><th>Result</th><th>Unit</th><th>Ref Range</th><th>Flag</th></tr></thead>
@@ -231,14 +270,14 @@ export function generateLabReportPrintHtml(test: any, report?: any, logoUrl?: st
     @media print{body{padding:18px;padding-bottom:100px}@page{margin:12mm}}
   </style></head><body>
   <div class="header">
-    <div class="header-left"><div class="clinic-name">${CLINIC.name}</div><div class="clinic-sub">${CLINIC.tagline}</div><div class="clinic-sub">${CLINIC.address}</div><div class="clinic-sub">${CLINIC.phone}</div></div>
-    <div class="header-center">${logoUrl ? `<img src="${logoUrl}" class="logo" />` : ''}</div>
+    <div class="header-left"><div class="clinic-name">${clinic.name}</div><div class="clinic-sub">${clinic.tagline}</div><div class="clinic-sub">${clinic.address}</div><div class="clinic-sub">${clinic.phone}</div></div>
+    <div class="header-center">${clinic.logo ? `<img src="${clinic.logo}" class="logo" />` : ''}</div>
     <div class="header-right"><div class="doc-title">LABORATORY REPORT</div><div class="doc-id">${test.labTestId}</div><div class="doc-id">${formatDate(test.createdAt)}</div></div>
   </div>
   <div class="patient-section"><div class="patient-col"><div class="label">Patient</div><div class="value">${test.patient?.firstName} ${test.patient?.lastName}</div><div class="sub">${test.patient?.patientId}</div></div><div class="patient-col"><div class="label">Requested By</div><div class="value">${test.requestedBy?.firstName} ${test.requestedBy?.lastName}</div></div></div>
   <div class="info-grid"><div class="info-item"><span class="label">Gender</span><div class="value">${test.patient?.gender || "—"}</div></div><div class="info-item"><span class="label">Age</span><div class="value">${calculateAge(test.patient?.dateOfBirth)}</div></div><div class="info-item"><span class="label">Status</span><div class="value">${test.status?.replace(/_/g, " ")}</div></div><div class="info-item"><span class="label">Collected</span><div class="value">${formatDate(test.sampleCollectedAt)}</div></div></div>
   <div class="results-section"><div class="results-label">Test Results</div>${resultsHtml}</div>
   ${technicianHtml}
-  <div class="footer">Computer-generated laboratory report • ${CLINIC.name} • ${formatDate(new Date().toISOString())}</div>
+  <div class="footer">Computer-generated laboratory report • ${clinic.name} • ${formatDate(new Date().toISOString())}</div>
   </body></html>`;
 }

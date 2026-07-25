@@ -460,11 +460,29 @@ const InventorySchema = new Schema<IInventoryItem>(
 );
 
 // ─── SETTINGS MODEL ───────────────────────────────────────
+export interface IWorkingDay {
+  day: string;
+  openingTime: string;
+  breakStart?: string;
+  breakEnd?: string;
+  closingTime: string;
+  isOpen?: boolean;
+}
+
+export interface IClosingDay {
+  _id?: string;
+  date: string;
+  reason: string;
+}
+
 export interface ISettings extends Document {
   clinicName: string;
+  clinicTagline?: string;
   clinicType: string;
   logo?: string;
-  address: {
+  logoPublicId?: string;
+  clinicAddress?: string;
+  address?: {
     street?: string;
     city?: string;
     state?: string;
@@ -481,6 +499,8 @@ export interface ISettings extends Document {
   dateFormat: string;
   invoicePrefix: string;
   appointmentDuration: number;
+  workingDays?: IWorkingDay[];
+  closingDays?: IClosingDay[];
   notificationSettings: {
     appointmentReminderHours: number;
     lowStockThreshold: number;
@@ -493,9 +513,12 @@ export interface ISettings extends Document {
 
 const SettingsSchema = new Schema<ISettings>(
   {
-    clinicName: { type: String, required: true },
+    clinicName: { type: String, required: true, default: "ClinicHMS" },
+    clinicTagline: { type: String, default: "Hospital Management System" },
     clinicType: { type: String, enum: ["clinic", "hospital", "diagnostic_center"], default: "clinic" },
-    logo: String,
+    logo: { type: String, default: "/logo.png" },
+    logoPublicId: String,
+    clinicAddress: { type: String, default: "123 Healthcare Avenue, Medical District" },
     address: {
       street: String,
       city: String,
@@ -503,8 +526,8 @@ const SettingsSchema = new Schema<ISettings>(
       country: String,
       postalCode: String,
     },
-    phone: { type: String, required: true },
-    email: { type: String, required: true },
+    phone: { type: String, required: true, default: "+92 300 1234567" },
+    email: { type: String, required: true, default: "info@clinichms.com" },
     website: String,
     registrationNumber: String,
     taxId: String,
@@ -513,6 +536,22 @@ const SettingsSchema = new Schema<ISettings>(
     dateFormat: { type: String, default: "DD/MM/YYYY" },
     invoicePrefix: { type: String, default: "INV" },
     appointmentDuration: { type: Number, default: 30 },
+    workingDays: [
+      {
+        day: { type: String, required: true },
+        openingTime: { type: String, required: true },
+        breakStart: String,
+        breakEnd: String,
+        closingTime: { type: String, required: true },
+        isOpen: { type: Boolean, default: true },
+      },
+    ],
+    closingDays: [
+      {
+        date: { type: String, required: true },
+        reason: { type: String, required: true },
+      },
+    ],
     notificationSettings: {
       appointmentReminderHours: { type: Number, default: 24 },
       lowStockThreshold: { type: Number, default: 10 },

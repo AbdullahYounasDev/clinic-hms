@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { generateLabReportPrintHtml, LabReportPdfTemplate } from "../printTemplates/lab-report-print-template";
 import { pdf } from "@react-pdf/renderer";
 import { useSession } from "next-auth/react";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 
 interface LabTestDetail {
     _id: string; labTestId: string;
@@ -57,6 +58,7 @@ const formatValue = (value: any) => {
 export function LabReportTab({ test, id }: LabReportTabProps) {
     const { data: session } = useSession();
     const qc = useQueryClient();
+    const clinicSettings = useClinicSettings();
     const [error, setError] = useState("");
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -130,7 +132,7 @@ export function LabReportTab({ test, id }: LabReportTabProps) {
     const handlePrint = () => {
         const printWindow = window.open("", "_blank");
         if (!printWindow) { toast.error("Please allow pop-ups to print."); return; }
-        printWindow.document.write(generateLabReportPrintHtml(test, existingReport, "/logo.png"));
+        printWindow.document.write(generateLabReportPrintHtml(test, existingReport, clinicSettings.logoUrl, clinicSettings));
         printWindow.document.close();
         printWindow.focus();
         setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
@@ -139,7 +141,7 @@ export function LabReportTab({ test, id }: LabReportTabProps) {
     const handleDownloadPdf = async () => {
         setIsPdfLoading(true);
         try {
-            const blob = await pdf(<LabReportPdfTemplate test={test} report={existingReport} logoUrl="/logo.png" />).toBlob();
+            const blob = await pdf(<LabReportPdfTemplate test={test} report={existingReport} logoUrl={clinicSettings.logoUrl} clinicDetails={clinicSettings} />).toBlob();
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;

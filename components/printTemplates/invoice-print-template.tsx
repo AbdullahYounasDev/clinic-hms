@@ -1,9 +1,9 @@
 // components/billing/invoice-templates.tsx
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
-import { 
-  NEXT_PUBLIC_CLINIC_NAME, 
-  NEXT_PUBLIC_CLINIC_TAGLINE, 
-  NEXT_PUBLIC_CLINIC_ADDRESS, 
+import {
+  NEXT_PUBLIC_CLINIC_NAME,
+  NEXT_PUBLIC_CLINIC_TAGLINE,
+  NEXT_PUBLIC_CLINIC_ADDRESS,
   NEXT_PUBLIC_CLINIC_PHONE,
   INVOICE_PRINT_PDF_TEMPLATE_COLORS,
 } from "@/constants/ClinicDetails";
@@ -101,9 +101,44 @@ const pdfStyles = StyleSheet.create({
   footer: { position: "absolute", bottom: 20, left: SPACING.pagePadding, right: SPACING.pagePadding, textAlign: "center", fontSize: FONTS.footer, color: "#aaa", borderTop: `1pt solid ${COLORS.border}`, paddingTop: 6 },
 });
 
-export function InvoicePdfTemplate({ invoice, logoUrl }: { invoice: any; logoUrl?: string }) {
-  const discountAmount = invoice.discountType === "percentage" ? invoice.subtotal * invoice.discount / 100 : invoice.discount;
-  const statusStyle = invoice.status === "paid" ? pdfStyles.statusPaid : invoice.status === "overdue" ? pdfStyles.statusOverdue : pdfStyles.statusPending;
+export interface PrintClinicDetails {
+  clinicName?: string;
+  clinicTagline?: string;
+  clinicAddress?: string;
+  phone?: string;
+  email?: string;
+  logoUrl?: string;
+}
+
+function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {
+  let rawLogo = details?.logoUrl || fallbackLogo || "";
+  if (rawLogo && rawLogo.startsWith("/") && typeof window !== "undefined") {
+    rawLogo = `${window.location.origin}${rawLogo}`;
+  }
+  return {
+    name: details?.clinicName || NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
+    tagline: details?.clinicTagline || NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
+    address: details?.clinicAddress || NEXT_PUBLIC_CLINIC_ADDRESS || "123 Healthcare Avenue, Medical District",
+    phone: details?.phone || NEXT_PUBLIC_CLINIC_PHONE || "+92 300 1234567",
+    logo: rawLogo,
+  };
+}
+
+function getDoctorName(doctor: any): string {
+  if (!doctor) return "";
+  if (typeof doctor === "string") return doctor;
+  if (doctor.user?.firstName) return `${doctor.user.firstName} ${doctor.user.lastName || ""}`.trim();
+  if (doctor.firstName) return `${doctor.firstName} ${doctor.lastName || ""}`.trim();
+  return "";
+}
+
+export function InvoicePdfTemplate({ invoice, logoUrl, clinicDetails }: { invoice: any; logoUrl?: string; clinicDetails?: PrintClinicDetails }) {
+  const inv = invoice || {};
+  const clinic = resolveClinic(clinicDetails, logoUrl);
+  const discountAmount = inv.discountType === "percentage" ? inv.subtotal * inv.discount / 100 : (inv.discount || 0);
+  const statusStyle = inv.status === "paid" ? pdfStyles.statusPaid : inv.status === "overdue" ? pdfStyles.statusOverdue : pdfStyles.statusPending;
+  const doctorName = getDoctorName(inv.doctor);
+  const items = Array.isArray(inv.items) ? inv.items : [];
 
   return (
     <Document>
@@ -111,36 +146,53 @@ export function InvoicePdfTemplate({ invoice, logoUrl }: { invoice: any; logoUrl
         <View style={pdfStyles.contentWrapper}>
           <View style={pdfStyles.header}>
             <View style={pdfStyles.headerLeft}>
-              <Text style={pdfStyles.clinicName}>{CLINIC.name}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.tagline}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.address}</Text>
-              <Text style={pdfStyles.clinicSub}>{CLINIC.phone}</Text>
+              <Text style={pdfStyles.clinicName}>{clinic.name}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.tagline}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.address}</Text>
+              <Text style={pdfStyles.clinicSub}>{clinic.phone}</Text>
             </View>
-            {logoUrl ? <View style={pdfStyles.headerCenter}><Image src={logoUrl} style={pdfStyles.logo} /></View> : <View style={{ width: 20 }} />}
+            {clinic.logo ? <View style={pdfStyles.headerCenter}><Image src={clinic.logo} style={pdfStyles.logo} /></View> : <View style={{ width: 20 }} />}
             <View style={pdfStyles.headerRight}>
               <Text style={pdfStyles.docTitle}>INVOICE</Text>
-              <Text style={pdfStyles.docId}>{invoice.invoiceNumber}</Text>
-              <Text style={[pdfStyles.statusBadge, statusStyle]}>{invoice.status.toUpperCase()}</Text>
+              <Text style={pdfStyles.docId}>{inv.invoiceNumber}</Text>
+              <Text style={[pdfStyles.statusBadge, statusStyle]}>{(inv.status || "UNPAID").toUpperCase()}</Text>
             </View>
           </View>
 
-          <View style={pdfStyles.section}>
-            <View style={{ flex: 1 }}>
+          <View style={pdfStyles.sectionRow}>
+            <View style={pdfStyles.sectionCol}>
               <Text style={pdfStyles.sectionLabel}>Bill To</Text>
-              {invoice.patient ? (
+              {inv.patient ? (
                 <>
-                  <Text style={pdfStyles.value}>{invoice.patient.firstName} {invoice.patient.lastName}</Text>
-                  <Text style={pdfStyles.subValue}>{invoice.patient.patientId}</Text>
-                  <Text style={pdfStyles.subValue}>{invoice.patient.phone}</Text>
-                  {invoice.patient.email && <Text style={pdfStyles.subValue}>{invoice.patient.email}</Text>}
+                  <Text style={pdfStyles.value}>{inv.patient.firstName} {inv.patient.lastName}</Text>
+                  <Text style={pdfStyles.subValue}>{inv.patient.patientId}</Text>
+                  <Text style={pdfStyles.subValue}>{inv.patient.phone}</Text>
+                  {inv.patient.email && <Text style={pdfStyles.subValue}>{inv.patient.email}</Text>}
                 </>
-              ) : <Text style={pdfStyles.value}>{invoice.patientName || "Walk-in Customer"}</Text>}
+              ) : inv.patientName ? (
+                <>
+                  <Text style={pdfStyles.value}>{inv.patientName}</Text>
+                  <Text style={pdfStyles.subValue}>Walk-in Patient</Text>
+                </>
+              ) : (
+                <Text style={pdfStyles.value}>Walk-in Customer</Text>
+              )}
             </View>
-            <View style={{ flex: 1, alignItems: "flex-end" }}>
+            <View style={[pdfStyles.sectionCol, { alignItems: "flex-end" }]}>
               <Text style={pdfStyles.sectionLabel}>Date Issued</Text>
-              <Text style={pdfStyles.value}>{formatDate(invoice.createdAt)}</Text>
-              {invoice.dueDate && <><Text style={[pdfStyles.sectionLabel, { marginTop: 8 }]}>Due Date</Text><Text style={pdfStyles.value}>{formatDate(invoice.dueDate)}</Text></>}
-              {invoice.doctor && <><Text style={[pdfStyles.sectionLabel, { marginTop: 8 }]}>Doctor</Text><Text style={pdfStyles.value}>Dr. {invoice.doctor.firstName} {invoice.doctor.lastName}</Text></>}
+              <Text style={pdfStyles.value}>{formatDate(inv.createdAt)}</Text>
+              {inv.dueDate && (
+                <>
+                  <Text style={[pdfStyles.sectionLabel, { marginTop: 4 }]}>Due Date</Text>
+                  <Text style={pdfStyles.value}>{formatDate(inv.dueDate)}</Text>
+                </>
+              )}
+              {doctorName && (
+                <>
+                  <Text style={[pdfStyles.sectionLabel, { marginTop: 4 }]}>Doctor</Text>
+                  <Text style={pdfStyles.value}>Dr. {doctorName}</Text>
+                </>
+              )}
             </View>
           </View>
 
@@ -151,9 +203,13 @@ export function InvoicePdfTemplate({ invoice, logoUrl }: { invoice: any; logoUrl
             <Text style={[pdfStyles.tableHeaderText, pdfStyles.colPrice]}>Unit Price</Text>
             <Text style={[pdfStyles.tableHeaderText, pdfStyles.colTotal]}>Total</Text>
           </View>
-          {invoice.items.map((item: any, i: number) => (
+
+          {items.map((item: any, i: number) => (
             <View key={i} style={pdfStyles.tableRow}>
-              <View style={pdfStyles.colDesc}><Text style={pdfStyles.tableCellBold}>{item.description}</Text>{item.medicine?.name && <Text style={pdfStyles.medicineName}>{item.medicine.name}</Text>}</View>
+              <View style={pdfStyles.colDesc}>
+                <Text style={pdfStyles.tableCellBold}>{item.description}</Text>
+                {item.medicine?.name && <Text style={pdfStyles.medicineName}>{item.medicine.name}</Text>}
+              </View>
               <Text style={[pdfStyles.tableCell, pdfStyles.colCat]}>{item.category}</Text>
               <Text style={[pdfStyles.tableCell, pdfStyles.colQty]}>{item.quantity}</Text>
               <Text style={[pdfStyles.tableCell, pdfStyles.colPrice]}>{formatCurrency(item.unitPrice)}</Text>
@@ -163,10 +219,10 @@ export function InvoicePdfTemplate({ invoice, logoUrl }: { invoice: any; logoUrl
 
           <View style={pdfStyles.totalsWrapper}>
             <View style={pdfStyles.totalsRow}><Text style={pdfStyles.totalsLabel}>Subtotal</Text><Text style={pdfStyles.totalsValue}>{formatCurrency(invoice.subtotal)}</Text></View>
-            {invoice.discount > 0 && <View style={pdfStyles.totalsRow}><Text style={[pdfStyles.totalsLabel, { color: COLORS.discountText }]}>Discount {invoice.discountType === "percentage" ? `(${invoice.discount}%)` : ""}</Text><Text style={[pdfStyles.totalsValue, { color: COLORS.discountText }]}>-{formatCurrency(discountAmount)}</Text></View>}
+            {invoice.discount > 0 && <View style={pdfStyles.totalsRow}><Text style={pdfStyles.totalsLabel}>Discount {invoice.discountType === "percentage" ? `(${invoice.discount}%)` : ""}</Text><Text style={[pdfStyles.totalsValue, { color: COLORS.discountText }]}>-{formatCurrency(discountAmount)}</Text></View>}
             {invoice.taxAmount > 0 && <View style={pdfStyles.totalsRow}><Text style={pdfStyles.totalsLabel}>Tax ({invoice.taxRate}%)</Text><Text style={pdfStyles.totalsValue}>{formatCurrency(invoice.taxAmount)}</Text></View>}
             <View style={[pdfStyles.totalsRow, pdfStyles.totalsTotal]}><Text style={{ fontWeight: "bold" }}>Total</Text><Text style={{ fontWeight: "bold" }}>{formatCurrency(invoice.total)}</Text></View>
-            <View style={pdfStyles.totalsRow}><Text style={[pdfStyles.totalsLabel, { color: COLORS.discountText }]}>Amount Paid</Text><Text style={[pdfStyles.totalsValue, { color: COLORS.discountText }]}>{formatCurrency(invoice.paidAmount)}</Text></View>
+            <View style={pdfStyles.totalsRow}><Text style={pdfStyles.totalsLabel}>Amount Paid</Text><Text style={[pdfStyles.totalsValue, { color: COLORS.discountText }]}>{formatCurrency(invoice.paidAmount)}</Text></View>
             {invoice.balanceDue > 0 && <View style={[pdfStyles.totalsRow, pdfStyles.totalsBalance]}><Text style={{ fontWeight: "bold", color: COLORS.balanceText }}>Balance Due</Text><Text style={{ fontWeight: "bold", color: COLORS.balanceText }}>{formatCurrency(invoice.balanceDue)}</Text></View>}
           </View>
 
@@ -185,21 +241,24 @@ export function InvoicePdfTemplate({ invoice, logoUrl }: { invoice: any; logoUrl
           {invoice.notes && <View style={pdfStyles.notesSection}><Text style={pdfStyles.sectionLabel}>Notes</Text><Text style={pdfStyles.subValue}>{invoice.notes}</Text></View>}
         </View>
 
-        <Text style={pdfStyles.footer} fixed>Thank you for choosing {CLINIC.name} • This is a computer-generated invoice</Text>
+        <Text style={pdfStyles.footer} fixed>Thank you for choosing {clinic.name} • This is a computer-generated invoice</Text>
       </Page>
     </Document>
   );
 }
 
-export function generateInvoicePrintHtml(invoice: any, logoUrl?: string): string {
+export function generateInvoicePrintHtml(invoice: any, logoUrl?: string, clinicDetails?: PrintClinicDetails): string {
+  const clinic = resolveClinic(clinicDetails, logoUrl);
   const discountAmount = invoice.discountType === "percentage" ? invoice.subtotal * invoice.discount / 100 : invoice.discount;
   const statusBadge = invoice.status === "paid" ? `<span class="status-badge status-paid">PAID</span>` : invoice.status === "overdue" ? `<span class="status-badge status-overdue">OVERDUE</span>` : `<span class="status-badge status-pending">${invoice.status.toUpperCase()}</span>`;
   const billToHtml = invoice.patient ? `<div class="value">${invoice.patient.firstName} ${invoice.patient.lastName}</div><div class="sub">${invoice.patient.patientId}</div><div class="sub">${invoice.patient.phone}</div>${invoice.patient.email ? `<div class="sub">${invoice.patient.email}</div>` : ''}` : invoice.patientName ? `<div class="value">${invoice.patientName}</div><div class="sub">Walk-in Patient</div>` : `<div class="value">Walk-in Customer</div>`;
   const itemsHtml = invoice.items.map((item: any) => `<tr><td>${item.description}${item.medicine?.name ? `<br/><span class="medicine-name">${item.medicine.name}</span>` : ''}</td><td><span class="category-badge">${item.category}</span></td><td class="right">${item.quantity}</td><td class="right">${formatCurrency(item.unitPrice)}</td><td class="right font-medium">${formatCurrency(item.total)}</td></tr>`).join("");
   const paymentsHtml = invoice.payments?.length > 0 ? `<div class="payments-section"><div class="payments-title">Payment History</div>${invoice.payments.map((p: any) => `<div class="payment-row"><span><strong>${formatCurrency(p.amount)}</strong> — ${p.method.replace(/_/g, " ")}${p.transactionRef ? ` (Ref: ${p.transactionRef})` : ''}</span><span class="muted">${formatDate(p.paidAt)}</span></div>`).join("")}</div>` : "";
-  const logoSvg = logoUrl ? `<div class="header-center"><img src="${logoUrl}" class="logo" /></div>` : "";
+  const logoSvg = clinic.logo ? `<div class="header-center"><img src="${clinic.logo}" class="logo" /></div>` : "";
 
-  return `<!DOCTYPE html><html><head><title>${invoice.invoiceNumber} - ${CLINIC.name}</title><style>
+  const doctorName = getDoctorName(invoice.doctor);
+
+  return `<!DOCTYPE html><html><head><title>${invoice.invoiceNumber || "Invoice"} - ${clinic.name}</title><style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:12px;color:${COLORS.text};background:#fff;padding:30px;padding-bottom:60px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid ${COLORS.primary}}
@@ -223,12 +282,12 @@ export function generateInvoicePrintHtml(invoice: any, logoUrl?: string): string
     .footer{position:fixed;bottom:0;left:30px;right:30px;text-align:center;font-size:9px;color:#aaa;border-top:1px solid ${COLORS.border};padding-top:10px;padding-bottom:10px;background:#fff}
     @media print{body{padding:20px;padding-bottom:60px}@page{margin:15mm}}
   </style></head><body>
-  <div class="header"><div class="header-left"><div class="clinic-name">${CLINIC.name}</div><div class="clinic-sub">${CLINIC.tagline}</div><div class="clinic-details">${CLINIC.address}<br/>${CLINIC.phone}</div></div>${logoSvg}<div class="header-right"><div class="invoice-title">INVOICE</div><div class="invoice-number">${invoice.invoiceNumber}</div>${statusBadge}</div></div>
-  <div class="section"><div><div class="label">Bill To</div>${billToHtml}</div><div style="text-align:right;"><div class="label">Date Issued</div><div class="value">${formatDate(invoice.createdAt)}</div>${invoice.dueDate ? `<div class="label" style="margin-top:8px;">Due Date</div><div class="value">${formatDate(invoice.dueDate)}</div>` : ''}${invoice.doctor ? `<div class="label" style="margin-top:8px;">Doctor</div><div class="value">Dr. ${invoice.doctor.firstName} ${invoice.doctor.lastName}</div>` : ''}</div></div>
+  <div class="header"><div class="header-left"><div class="clinic-name">${clinic.name}</div><div class="clinic-sub">${clinic.tagline}</div><div class="clinic-details">${clinic.address}<br/>${clinic.phone}</div></div>${logoSvg}<div class="header-right"><div class="invoice-title">INVOICE</div><div class="invoice-number">${invoice.invoiceNumber || ""}</div>${statusBadge}</div></div>
+  <div class="section"><div><div class="label">Bill To</div>${billToHtml}</div><div style="text-align:right;"><div class="label">Date Issued</div><div class="value">${formatDate(invoice.createdAt)}</div>${invoice.dueDate ? `<div class="label" style="margin-top:8px;">Due Date</div><div class="value">${formatDate(invoice.dueDate)}</div>` : ''}${doctorName ? `<div class="label" style="margin-top:8px;">Doctor</div><div class="value">Dr. ${doctorName}</div>` : ''}</div></div>
   <table><thead><tr><th>Description</th><th>Category</th><th class="right">Qty</th><th class="right">Unit Price</th><th class="right">Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
   <div class="totals"><div class="totals-row"><span class="totals-label">Subtotal</span><span class="totals-value">${formatCurrency(invoice.subtotal)}</span></div>${invoice.discount > 0 ? `<div class="totals-row"><span class="totals-label">Discount ${invoice.discountType === "percentage" ? `(${invoice.discount}%)` : ''}</span><span class="totals-value" style="color:${COLORS.discountText};">-${formatCurrency(discountAmount)}</span></div>` : ''}${invoice.taxAmount > 0 ? `<div class="totals-row"><span class="totals-label">Tax (${invoice.taxRate}%)</span><span class="totals-value">${formatCurrency(invoice.taxAmount)}</span></div>` : ''}<div class="totals-row total"><span>Total</span><span>${formatCurrency(invoice.total)}</span></div><div class="totals-row"><span class="totals-label">Amount Paid</span><span class="totals-value" style="color:${COLORS.discountText};">${formatCurrency(invoice.paidAmount)}</span></div>${invoice.balanceDue > 0 ? `<div class="totals-row balance"><span>Balance Due</span><span>${formatCurrency(invoice.balanceDue)}</span></div>` : ''}</div>
   ${paymentsHtml}
   ${invoice.notes ? `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #f0f0f0;"><div class="label">Notes</div><div style="font-size:10px;color:#666;">${invoice.notes}</div></div>` : ''}
-  <div class="footer">Thank you for choosing ${CLINIC.name} • This is a computer-generated invoice</div>
+  <div class="footer">Thank you for choosing ${clinic.name} • This is a computer-generated invoice</div>
   </body></html>`;
 }

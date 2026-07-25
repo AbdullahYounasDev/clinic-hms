@@ -59,22 +59,42 @@ const pdfStyles = StyleSheet.create({
   footer: { position: "absolute", bottom: 20, left: 35, right: 35, textAlign: "center", fontSize: 7, color: "#aaa", borderTop: `1pt solid ${COLORS.border}`, paddingTop: 6 },
 });
 
-export function PrescriptionPdfTemplate({ prescription, logoUrl }: { prescription: any; logoUrl?: string }) {
+export interface PrintClinicDetails {
+  clinicName?: string;
+  clinicTagline?: string;
+  clinicAddress?: string;
+  phone?: string;
+  email?: string;
+  logoUrl?: string;
+}
+
+function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {
+  return {
+    name: details?.clinicName || NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
+    tagline: details?.clinicTagline || NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
+    address: details?.clinicAddress || NEXT_PUBLIC_CLINIC_ADDRESS || "123 Healthcare Avenue, Medical District",
+    phone: details?.phone || NEXT_PUBLIC_CLINIC_PHONE || "+92 300 1234567",
+    logo: details?.logoUrl || fallbackLogo || "",
+  };
+}
+
+export function PrescriptionPdfTemplate({ prescription, logoUrl, clinicDetails }: { prescription: any; logoUrl?: string; clinicDetails?: PrintClinicDetails }) {
   const doctor = prescription.doctor?.user || prescription.doctor;
   const patient = prescription.patient;
+  const clinic = resolveClinic(clinicDetails, logoUrl);
 
   return (
     <Document>
       <Page size="A4" style={pdfStyles.page}>
         <View style={pdfStyles.header}>
           <View style={pdfStyles.headerLeft}>
-            <Text style={pdfStyles.clinicName}>{CLINIC.name}</Text>
-            <Text style={pdfStyles.clinicSub}>{CLINIC.tagline}</Text>
-            <Text style={pdfStyles.clinicSub}>{CLINIC.address}</Text>
-            <Text style={pdfStyles.clinicSub}>{CLINIC.phone}</Text>
+            <Text style={pdfStyles.clinicName}>{clinic.name}</Text>
+            <Text style={pdfStyles.clinicSub}>{clinic.tagline}</Text>
+            <Text style={pdfStyles.clinicSub}>{clinic.address}</Text>
+            <Text style={pdfStyles.clinicSub}>{clinic.phone}</Text>
           </View>
-          {logoUrl ? (
-            <View style={pdfStyles.headerCenter}><Image src={logoUrl} style={pdfStyles.logo} /></View>
+          {clinic.logo ? (
+            <View style={pdfStyles.headerCenter}><Image src={clinic.logo} style={pdfStyles.logo} /></View>
           ) : (
             <View style={{ width: 20 }} />
           )}
@@ -139,17 +159,18 @@ export function PrescriptionPdfTemplate({ prescription, logoUrl }: { prescriptio
         )}
 
         <Text style={pdfStyles.footer} fixed>
-          {CLINIC.name} • This is a computer-generated prescription • Please follow your doctor&apos;s advice
+          {clinic.name} • This is a computer-generated prescription • Please follow your doctor&apos;s advice
         </Text>
       </Page>
     </Document>
   );
 }
 
-export function generatePrescriptionPrintHtml(prescription: any, logoUrl?: string): string {
+export function generatePrescriptionPrintHtml(prescription: any, logoUrl?: string, clinicDetails?: PrintClinicDetails): string {
   const doctor = prescription.doctor?.user || prescription.doctor;
   const patient = prescription.patient;
-  const logoHtml = logoUrl ? `<div class="header-center"><img src="${logoUrl}" class="logo" /></div>` : "";
+  const clinic = resolveClinic(clinicDetails, logoUrl);
+  const logoHtml = clinic.logo ? `<div class="header-center"><img src="${clinic.logo}" class="logo" /></div>` : "";
   const medicinesHtml = (prescription.medicines || []).map((med: any) =>
     `<tr>
       <td><strong>${med.medicineName}</strong>${med.strength ? ` (${med.strength})` : ""}${med.genericName ? `<br/><span class="sub">${med.genericName}</span>` : ""}</td>
@@ -164,7 +185,7 @@ export function generatePrescriptionPrintHtml(prescription: any, logoUrl?: strin
     `<div class="sub">• ${med.medicineName}: ${med.instructions}</div>`
   ).join("") || "";
 
-  return `<!DOCTYPE html><html><head><title>${prescription.prescriptionId} - ${CLINIC.name}</title><style>
+  return `<!DOCTYPE html><html><head><title>${prescription.prescriptionId} - ${clinic.name}</title><style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:12px;color:${COLORS.text};background:#fff;padding:30px;padding-bottom:60px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid ${COLORS.primary}}
@@ -182,11 +203,11 @@ export function generatePrescriptionPrintHtml(prescription: any, logoUrl?: strin
     .footer{position:fixed;bottom:0;left:30px;right:30px;text-align:center;font-size:9px;color:#aaa;border-top:1px solid ${COLORS.border};padding-top:10px;padding-bottom:10px;background:#fff}
     @media print{body{padding:20px;padding-bottom:60px}@page{margin:15mm}}
   </style></head><body>
-  <div class="header"><div class="header-left"><div class="clinic-name">${CLINIC.name}</div><div class="clinic-sub">${CLINIC.tagline}</div><div class="clinic-sub">${CLINIC.address}<br/>${CLINIC.phone}</div></div>${logoHtml}<div class="header-right"><div class="doc-title">PRESCRIPTION</div><div class="doc-id">${prescription.prescriptionId}</div><div class="doc-id">${formatDate(prescription.createdAt)}</div></div></div>
+  <div class="header"><div class="header-left"><div class="clinic-name">${clinic.name}</div><div class="clinic-sub">${clinic.tagline}</div><div class="clinic-sub">${clinic.address}<br/>${clinic.phone}</div></div>${logoHtml}<div class="header-right"><div class="doc-title">PRESCRIPTION</div><div class="doc-id">${prescription.prescriptionId}</div><div class="doc-id">${formatDate(prescription.createdAt)}</div></div></div>
   <div class="section"><div><div class="label">Patient</div><div class="value">${patient?.firstName} ${patient?.lastName}</div><div class="sub">${patient?.patientId || ""}</div>${patient?.phone ? `<div class="sub">${patient.phone}</div>` : ""}</div><div style="text-align:right;"><div class="label">Prescribed By</div><div class="value">Dr. ${doctor?.firstName || ""} ${doctor?.lastName || ""}</div></div></div>
   <table><thead><tr><th>Medicine</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Route</th><th class="right">Qty</th></tr></thead><tbody>${medicinesHtml}</tbody></table>
   ${instructionsHtml ? `<div class="notes"><div class="label">Instructions</div>${instructionsHtml}</div>` : ""}
   ${prescription.notes ? `<div class="notes"><div class="label">Notes</div><div class="sub">${prescription.notes}</div></div>` : ""}
-  <div class="footer">${CLINIC.name} • This is a computer-generated prescription • Please follow your doctor's advice</div>
+  <div class="footer">${clinic.name} • This is a computer-generated prescription • Please follow your doctor's advice</div>
   </body></html>`;
 }

@@ -27,10 +27,19 @@ export async function POST(req: NextRequest) {
             return apiError("Messages are required", 400);
         }
 
+        let clinicName = NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS";
+        try {
+            await connectDB();
+            const s = await Settings.findOne({}).select("clinicName").lean();
+            if (s?.clinicName) clinicName = s.clinicName;
+        } catch {
+            // fallback
+        }
+
         // Build dynamic system prompt from session
         const userName = session.user.fullName || session.user.name || "User";
         const userRole = session.user.role || "Staff";
-        const systemPrompt = `You are a helpful AI assistant in a clinic or hospital management system ${NEXT_PUBLIC_CLINIC_NAME || 'ClinicHms'}.
+        const systemPrompt = `You are a helpful AI assistant in a clinic or hospital management system ${clinicName}.
 
 Current User Information:
 - Name: ${userName}
