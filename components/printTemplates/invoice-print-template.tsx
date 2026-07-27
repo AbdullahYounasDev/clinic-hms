@@ -1,19 +1,6 @@
-// components/billing/invoice-templates.tsx
+// No hardcoded constants — all clinic data must come from the caller via clinicDetails prop
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
-import {
-  NEXT_PUBLIC_CLINIC_NAME,
-  NEXT_PUBLIC_CLINIC_TAGLINE,
-  NEXT_PUBLIC_CLINIC_ADDRESS,
-  NEXT_PUBLIC_CLINIC_PHONE,
-  INVOICE_PRINT_PDF_TEMPLATE_COLORS,
-} from "@/constants/ClinicDetails";
-
-const CLINIC = {
-  name: NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
-  tagline: NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
-  address: NEXT_PUBLIC_CLINIC_ADDRESS || "123 Healthcare Avenue, Medical District",
-  phone: NEXT_PUBLIC_CLINIC_PHONE || "+92 300 1234567",
-};
+import { INVOICE_PRINT_PDF_TEMPLATE_COLORS } from "@/constants/ClinicDetails";
 
 const COLORS = INVOICE_PRINT_PDF_TEMPLATE_COLORS || {
   primary: "#0d9488",
@@ -112,14 +99,15 @@ export interface PrintClinicDetails {
 
 function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {
   let rawLogo = details?.logoUrl || fallbackLogo || "";
+  // @react-pdf/renderer cannot load relative paths — convert to absolute URL
   if (rawLogo && rawLogo.startsWith("/") && typeof window !== "undefined") {
     rawLogo = `${window.location.origin}${rawLogo}`;
   }
   return {
-    name: details?.clinicName || NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
-    tagline: details?.clinicTagline || NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
-    address: details?.clinicAddress || NEXT_PUBLIC_CLINIC_ADDRESS || "123 Healthcare Avenue, Medical District",
-    phone: details?.phone || NEXT_PUBLIC_CLINIC_PHONE || "+92 300 1234567",
+    name: details?.clinicName || "ClinicHMS",
+    tagline: details?.clinicTagline || "Hospital Management System",
+    address: details?.clinicAddress || "",
+    phone: details?.phone || "",
     logo: rawLogo,
   };
 }

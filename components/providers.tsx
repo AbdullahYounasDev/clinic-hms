@@ -4,9 +4,16 @@ import { SessionProvider } from "next-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
-import { ClinicProvider } from "@/components/providers/clinic-provider";
+import { ClinicProvider, type ClinicSettings } from "@/components/providers/clinic-provider";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+interface ProvidersProps {
+  children: React.ReactNode;
+  /** Server-fetched clinic settings passed from the root layout Server Component.
+   *  Eliminates flash of default branding on first render. */
+  initialClinicSettings?: ClinicSettings;
+}
+
+export function Providers({ children, initialClinicSettings }: ProvidersProps) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -26,11 +33,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       refetchWhenOffline={false}
     >
       <QueryClientProvider client={queryClient}>
-        <ClinicProvider>
+        <ClinicProvider initialSettings={initialClinicSettings}>
           {children}
           <Toaster />
         </ClinicProvider>
       </QueryClientProvider>
     </SessionProvider>
   );
-}
+}

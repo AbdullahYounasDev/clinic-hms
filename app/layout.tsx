@@ -26,20 +26,45 @@ import connectDB from "@/lib/db/mongoose";
 import { Settings } from "@/models/operations.model";
 
 async function getClinicInfo() {
+  const fallback = {
+    name: NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
+    tagline: NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
+    logo: NEXT_PUBLIC_LOGO_URL || "/logo.png",
+    clinicAddress: "123 Healthcare Avenue, Medical District",
+    phone: "+92 300 1234567",
+    email: "info@clinichms.com",
+    clinicType: "clinic",
+    workingDays: [
+      { day: "Monday", openingTime: "08:00", breakStart: "13:00", breakEnd: "14:00", closingTime: "17:00", isOpen: true },
+      { day: "Tuesday", openingTime: "08:00", breakStart: "13:00", breakEnd: "14:00", closingTime: "17:00", isOpen: true },
+      { day: "Wednesday", openingTime: "08:00", breakStart: "13:00", breakEnd: "14:00", closingTime: "17:00", isOpen: true },
+      { day: "Thursday", openingTime: "08:00", breakStart: "13:00", breakEnd: "14:00", closingTime: "17:00", isOpen: true },
+      { day: "Friday", openingTime: "08:00", breakStart: "13:00", breakEnd: "14:00", closingTime: "17:00", isOpen: true },
+    ],
+    closingDays: [] as unknown[],
+  };
   try {
     await connectDB();
-    const settings = await Settings.findOne({}).select("clinicName clinicTagline logo").lean();
+    const settings = await Settings.findOne({}).select(
+      "clinicName clinicTagline logo logoPublicId clinicAddress phone email clinicType workingDays closingDays"
+    ).lean();
+    if (!settings) return fallback;
     return {
-      name: settings?.clinicName || NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
-      tagline: settings?.clinicTagline || NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
-      logo: settings?.logo || NEXT_PUBLIC_LOGO_URL || "/logo.png",
+      name: settings.clinicName || fallback.name,
+      tagline: settings.clinicTagline || fallback.tagline,
+      logo: settings.logo || fallback.logo,
+      logoPublicId: settings.logoPublicId || "",
+      clinicAddress: settings.clinicAddress || fallback.clinicAddress,
+      phone: settings.phone || fallback.phone,
+      email: settings.email || fallback.email,
+      clinicType: settings.clinicType || fallback.clinicType,
+      workingDays: (settings.workingDays && settings.workingDays.length > 0)
+        ? settings.workingDays
+        : fallback.workingDays,
+      closingDays: settings.closingDays || [],
     };
   } catch {
-    return {
-      name: NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
-      tagline: NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
-      logo: NEXT_PUBLIC_LOGO_URL || "/logo.png",
-    };
+    return fallback;
   }
 }
 
@@ -77,6 +102,28 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const activeLogo = clinic.logo || LOGO_URL;
   const activeName = clinic.name || CLINIC_NAME;
 
+  // Serialize through JSON to strip all Mongoose-specific types (ObjectId, Buffer, etc.)
+  // that cannot cross the Server→Client Component boundary.
+  // This converts workingDays._id / closingDays._id ObjectIds into plain strings (or removes them).
+  const rawClinic = clinic as Record<string, unknown>;
+  const publicSettings = JSON.parse(JSON.stringify({
+    clinicName: clinic.name,
+    clinicTagline: clinic.tagline,
+    logo: clinic.logo,
+    logoPublicId: rawClinic.logoPublicId as string || "",
+    clinicAddress: rawClinic.clinicAddress as string || "",
+    phone: rawClinic.phone as string || "",
+    email: rawClinic.email as string || "",
+    clinicType: rawClinic.clinicType as string || "clinic",
+    // Strip _id from each subdocument so only plain fields cross the boundary
+    workingDays: ((rawClinic.workingDays as Record<string, unknown>[] | undefined) || []).map(
+      ({ _id, ...day }) => day
+    ),
+    closingDays: ((rawClinic.closingDays as Record<string, unknown>[] | undefined) || []).map(
+      ({ _id, ...cd }) => cd
+    ),
+  })) as import("@/components/providers/clinic-provider").ClinicSettings;
+
   return (
     <html lang="en" className={poppins.variable}>
       <head>
@@ -103,7 +150,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <RegisterServiceWorker />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <SidebarProvider>
-            <Providers>{children}</Providers>
+            {/* Pass server-fetched clinic settings as a prop so ClinicProvider
+                gets real DB data on first render — no script injection needed */}
+            <Providers initialClinicSettings={publicSettings}>{children}</Providers>
             <Toaster
               position="top-right"
               expand={false}

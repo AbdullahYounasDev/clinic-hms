@@ -12,11 +12,6 @@ import { toast } from "sonner";
 import Image from "next/image";
 import Link from "next/link";
 import { useClinicSettings } from "@/components/providers/clinic-provider";
-import {
-  NEXT_PUBLIC_LOGO_URL,
-  NEXT_PUBLIC_CLINIC_NAME,
-  NEXT_PUBLIC_CLINIC_TAGLINE,
-} from "@/constants/ClinicDetails";
 
 const rotatingTexts = [
   "manage patients",

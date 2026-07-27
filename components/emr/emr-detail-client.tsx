@@ -20,6 +20,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { generateEMRPrintHtml, EMRPdfTemplate } from "../printTemplates/emr-templates";
 import { pdf } from "@react-pdf/renderer";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 
 interface EMRRecord {
     _id: string;
@@ -48,6 +49,7 @@ export function EMRDetailClient({ emrId }: { emrId: string }) {
     const { data: session } = useSession();
     const router = useRouter();
     const qc = useQueryClient();
+    const clinicSettings = useClinicSettings();
     const [editOpen, setEditOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<"emr" | "rx">("emr");
     const [error, setError] = useState("");

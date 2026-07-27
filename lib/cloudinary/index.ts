@@ -98,7 +98,16 @@ export async function uploadMultipleFiles(
  * Delete a single file from Cloudinary by public ID
  */
 export async function deleteFile(publicId: string): Promise<void> {
-  await cloudinary.uploader.destroy(publicId);
+  if (!publicId) return;
+  const result = await cloudinary.uploader.destroy(publicId, { invalidate: true });
+  if (result.result === "not found") {
+    // Asset already gone from Cloudinary — treat as success (idempotent)
+    console.warn(`[Cloudinary] deleteFile: asset not found for publicId="${publicId}" — already deleted or never existed.`);
+    return;
+  }
+  if (result.result !== "ok") {
+    throw new Error(`[Cloudinary] deleteFile failed for publicId="${publicId}": ${result.result}`);
+  }
 }
 
 /**

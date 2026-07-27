@@ -79,18 +79,29 @@ const ClinicContext = createContext<ClinicContextValue>({
   closingDays: DEFAULT_SETTINGS.closingDays,
 });
 
-function getInitialSettings(): ClinicSettings {
+function getInitialSettings(serverSettings?: ClinicSettings): ClinicSettings {
+  // 1. Best: server-fetched data passed as prop from the Root Layout Server Component
+  if (serverSettings) return serverSettings;
+  // 2. Fallback: cached from last successful API fetch (for client-side navigations)
   if (typeof window !== "undefined") {
     try {
       const stored = localStorage.getItem("clinic_hms_settings");
       if (stored) return JSON.parse(stored);
     } catch {}
   }
+  // 3. Last resort: hardcoded defaults
   return DEFAULT_SETTINGS;
 }
 
-export function ClinicProvider({ children }: { children: React.ReactNode }) {
-  const [initialSettings] = React.useState<ClinicSettings>(getInitialSettings);
+export function ClinicProvider({
+  children,
+  initialSettings: serverSettings,
+}: {
+  children: React.ReactNode;
+  /** Server-fetched clinic settings from the Root Layout. Eliminates branding flash. */
+  initialSettings?: ClinicSettings;
+}) {
+  const [initialSettings] = React.useState<ClinicSettings>(() => getInitialSettings(serverSettings));
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["public-settings"],
@@ -103,12 +114,15 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem("clinic_hms_settings", JSON.stringify(fetched));
           } catch {}
         }
-        return (fetched || DEFAULT_SETTINGS) as ClinicSettings;
+        return (fetched || initialSettings) as ClinicSettings;
       } catch {
-        return getInitialSettings();
+        return initialSettings;
       }
     },
-    staleTime: 0,
+    // Pre-populate with server-passed data so first render has real values immediately
+    initialData: initialSettings,
+    // Still refetch in background to pick up any settings changes
+    staleTime: 30_000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });

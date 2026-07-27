@@ -4,7 +4,7 @@ import connectDB from "@/lib/db/mongoose";
 import { Settings } from "@/models/operations.model";
 import { apiSuccess, apiError } from "@/lib/utils";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
-import { uploadFile, deleteFile } from "@/lib/cloudinary";
+import { uploadFile, deleteFile, extractPublicIdFromUrl } from "@/lib/cloudinary";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -39,12 +39,20 @@ export async function POST(req: NextRequest) {
     await connectDB();
     const existingSettings = await Settings.findOne({});
 
-    // Delete previous logo from Cloudinary if it exists
-    if (existingSettings?.logoPublicId) {
+    // Delete previous logo from Cloudinary if it exists.
+    // Fallback: if logoPublicId is missing (legacy record), derive it from the logo URL.
+    const prevPublicId = existingSettings?.logoPublicId ||
+      (existingSettings?.logo?.includes("cloudinary.com")
+        ? extractPublicIdFromUrl(existingSettings.logo)
+        : "");
+
+    if (prevPublicId) {
       try {
-        await deleteFile(existingSettings.logoPublicId);
+        await deleteFile(prevPublicId);
+        console.log(`[Settings] Deleted previous logo from Cloudinary: ${prevPublicId}`);
       } catch (err) {
-        console.error("Failed to delete previous logo from Cloudinary:", err);
+        // Log but don't block the upload — the new logo should still be saved
+        console.error("[Settings] Failed to delete previous logo from Cloudinary:", err);
       }
     }
 
@@ -89,12 +97,22 @@ export async function DELETE(_req: NextRequest) {
     await connectDB();
     const existingSettings = await Settings.findOne({});
 
-    if (existingSettings?.logoPublicId) {
+    // Fallback: if logoPublicId is missing (legacy record), derive it from the logo URL.
+    const publicIdToDelete = existingSettings?.logoPublicId ||
+      (existingSettings?.logo?.includes("cloudinary.com")
+        ? extractPublicIdFromUrl(existingSettings.logo)
+        : "");
+
+    if (publicIdToDelete) {
       try {
-        await deleteFile(existingSettings.logoPublicId);
+        await deleteFile(publicIdToDelete);
+        console.log(`[Settings] Deleted logo from Cloudinary: ${publicIdToDelete}`);
       } catch (err) {
-        console.error("Failed to delete logo from Cloudinary:", err);
+        // Log the error but still reset the DB record to /logo.png
+        console.error("[Settings] Failed to delete logo from Cloudinary:", err);
       }
+    } else {
+      console.log("[Settings] No Cloudinary logo publicId found — nothing to delete from Cloudinary.");
     }
 
     const updatedSettings = await Settings.findOneAndUpdate(

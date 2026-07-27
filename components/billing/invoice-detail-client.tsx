@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { generateInvoicePrintHtml, InvoicePdfTemplate } from "../printTemplates/invoice-print-template";
 import { pdf } from "@react-pdf/renderer";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 
 type PaymentInput = z.infer<typeof addPaymentSchema>;
 
@@ -50,6 +51,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
   const { data: session } = useSession();
   const qc = useQueryClient();
   const router = useRouter();
+  const clinicSettings = useClinicSettings();
 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentError, setPaymentError] = useState("");

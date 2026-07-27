@@ -1,37 +1,10 @@
-// components/appointments/appointment-templates.ts
+// No hardcoded constants — all clinic data must come from the caller via clinicDetails prop
+// (populated from useClinicSettings() which reads from DB via server-injected window.__CLINIC_SETTINGS__)
+
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
-import {
-  NEXT_PUBLIC_CLINIC_NAME,
-  NEXT_PUBLIC_CLINIC_TAGLINE,
-  NEXT_PUBLIC_CLINIC_ADDRESS,
-  NEXT_PUBLIC_CLINIC_PHONE,
-  APPOINTMENT_PRINT_PDF_TEMPLATE_COLORS,
-} from "@/constants/ClinicDetails";
+import { APPOINTMENT_PRINT_PDF_TEMPLATE_COLORS } from "@/constants/ClinicDetails";
 
-const CLINIC = {
-  name: NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
-  tagline: NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
-  address: NEXT_PUBLIC_CLINIC_ADDRESS || "123 Healthcare Avenue, Medical District",
-  phone: NEXT_PUBLIC_CLINIC_PHONE || "+92 300 1234567",
-};
-
-const COLORS = APPOINTMENT_PRINT_PDF_TEMPLATE_COLORS || {
-  primary: "#0d9488",
-  text: "#1a1a1a",
-  muted: "#666",
-  lightText: "#888",
-  border: "#e5e5e5",
-  scheduledBg: "#dbeafe",
-  scheduledText: "#1e40af",
-  completedBg: "#d1fae5",
-  completedText: "#065f46",
-  cancelledBg: "#fee2e2",
-  cancelledText: "#991b1b",
-  checkedInBg: "#fef3c7",
-  checkedInText: "#92400e",
-  noShowBg: "#f3f4f6",
-  noShowText: "#374151",
-};
+const COLORS = APPOINTMENT_PRINT_PDF_TEMPLATE_COLORS;
 
 const FONTS = {
   clinicName: 18,
@@ -85,12 +58,17 @@ export interface PrintClinicDetails {
 }
 
 function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {
+  let rawLogo = details?.logoUrl || fallbackLogo || "";
+  // @react-pdf/renderer cannot load relative paths — convert to absolute URL
+  if (rawLogo && rawLogo.startsWith("/") && typeof window !== "undefined") {
+    rawLogo = `${window.location.origin}${rawLogo}`;
+  }
   return {
-    name: details?.clinicName || NEXT_PUBLIC_CLINIC_NAME || "ClinicHMS",
-    tagline: details?.clinicTagline || NEXT_PUBLIC_CLINIC_TAGLINE || "Hospital Management System",
-    address: details?.clinicAddress || NEXT_PUBLIC_CLINIC_ADDRESS || "123 Healthcare Avenue, Medical District",
-    phone: details?.phone || NEXT_PUBLIC_CLINIC_PHONE || "+92 300 1234567",
-    logo: details?.logoUrl || fallbackLogo || "",
+    name: details?.clinicName || "ClinicHMS",
+    tagline: details?.clinicTagline || "Hospital Management System",
+    address: details?.clinicAddress || "",
+    phone: details?.phone || "",
+    logo: rawLogo,
   };
 }
 
