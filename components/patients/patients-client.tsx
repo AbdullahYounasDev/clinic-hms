@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { Search, Plus, Filter, ChevronDown, X, Trash2, Eye, EyeOff } from "lucide-react";
@@ -69,9 +69,12 @@ export function PatientsClient() {
     handleSubmit,
     reset,
     setValue,
-    watch,
+    control,
     formState: { errors },
   } = useForm<CreatePatientInput>({ resolver: zodResolver(createPatientSchema) });
+
+  const watchedAllergies = useWatch({ control, name: "allergies" });
+  const watchedChronicDiseases = useWatch({ control, name: "chronicDiseases" });
 
   const createMutation = useMutation({
     mutationFn: (d: CreatePatientInput) => {
@@ -419,7 +422,7 @@ export function PatientsClient() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="Allergies (comma-separated)">
                 <Input
-                  defaultValue={watch("allergies")?.join(", ") || ""}
+                  defaultValue={watchedAllergies?.join(", ") || ""}
                   onBlur={(e) => {
                     const val = e.target.value;
                     setValue("allergies", val.split(",").map(s => s.trim()).filter(Boolean));
@@ -429,7 +432,7 @@ export function PatientsClient() {
               </FormField>
               <FormField label="Chronic Diseases (comma-separated)">
                 <Input
-                  defaultValue={watch("chronicDiseases")?.join(", ") || ""}
+                  defaultValue={watchedChronicDiseases?.join(", ") || ""}
                   onBlur={(e) => {
                     const val = e.target.value;
                     setValue("chronicDiseases", val.split(",").map(s => s.trim()).filter(Boolean));

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const { page, limit, skip } = getPaginationParams(sp);
   const action = sp.get("action") || "";
-  const module = sp.get("module") || "";
+  const moduleFilter = sp.get("module") || "";
   const userId = sp.get("user") || "";
   const status = sp.get("status") || "";
   const from = sp.get("from") || "";
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   const filter: Record<string, unknown> = {};
   if (action) filter.action = action;
-  if (module) filter.module = module;
+  if (moduleFilter) filter.module = moduleFilter;
   if (userId) filter.user = userId;
   if (status) filter.status = status;
   if (from || to) {

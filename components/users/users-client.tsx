@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { Plus, Search, Eye, EyeOff, Filter, ChevronDown, X, Trash2 } from "lucide-react";
@@ -78,13 +78,13 @@ export function UsersClient() {
   const roles = rolesData?.data || [];
   const departments = deptData?.data || [];
 
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<CreateUserInput>({
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<CreateUserInput>({
     resolver: zodResolver(createUserSchema),
     defaultValues: { mustChangePassword: true },
   });
 
-  const selectedRoleId = watch("role");
-  const selectedRole = roles.find((r: any) => String(r._id) === String(selectedRoleId) || r.slug === selectedRoleId || r.name === selectedRoleId);
+  const selectedRoleId = useWatch({ control, name: "role" });
+  const selectedRole = roles.find((r: { _id: string; slug?: string; name?: string }) => String(r._id) === String(selectedRoleId) || r.slug === selectedRoleId || r.name === selectedRoleId);
   const isDoctorRole = Boolean(
     selectedRole &&
       (selectedRole.slug?.toLowerCase() === "doctor" ||

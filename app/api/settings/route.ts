@@ -6,6 +6,9 @@ import { apiSuccess, apiError } from "@/lib/utils";
 import { updateSettingsSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const DEFAULT_SETTINGS = {
   clinicName: "ClinicHMS",
   clinicTagline: "Hospital Management System",

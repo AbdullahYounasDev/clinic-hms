@@ -97,11 +97,9 @@ Guidelines:
         const response = result.response.text();
 
         return apiSuccess({ response });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("AI Chat Error:", error);
-        return apiError(
-            error?.message || "AI service temporarily unavailable. Please try again.",
-            500
-        );
+        const errorMessage = error instanceof Error ? error.message : "AI service temporarily unavailable. Please try again.";
+        return apiError(errorMessage, 500);
     }
 }

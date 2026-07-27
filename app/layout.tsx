@@ -1,9 +1,14 @@
 import dns from "dns/promises";
 
-dns.setServers([
-  "8.8.8.8",
-  "8.8.4.4"
-]);
+try {
+  dns.setServers([
+    "8.8.8.8",
+    "8.8.4.4"
+  ]);
+} catch {}
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import type { Metadata, Viewport } from "next";
 import "./globals.css";

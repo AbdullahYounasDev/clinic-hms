@@ -49,6 +49,12 @@ export function EditSupplierModal({ open, onClose, supplier, onUpdate, isPending
         resolver: zodResolver(updateSupplierSchema),
     });
 
+    const [prevSupplierId, setPrevSupplierId] = useState<string | null>(null);
+    if (supplier && supplier._id !== prevSupplierId) {
+        setPrevSupplierId(supplier._id);
+        setSelectedCategories(supplier.categories || []);
+    }
+
     useEffect(() => {
         if (supplier) {
             reset({
@@ -68,7 +74,6 @@ export function EditSupplierModal({ open, onClose, supplier, onUpdate, isPending
                 notes: supplier.notes || "",
                 isActive: supplier.isActive,
             });
-            setSelectedCategories(supplier.categories || []);
         }
     }, [supplier, reset]);
 

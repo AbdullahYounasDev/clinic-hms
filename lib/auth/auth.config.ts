@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/db/mongoose";
@@ -200,7 +200,7 @@ export const authOptions = {
     },
   },
   callbacks: {
-    async jwt({ token, user, trigger }: { token: Record<string, unknown>; user?: Record<string, unknown>; trigger?: string }) {
+    async jwt({ token, user }: { token: Record<string, unknown>; user?: Record<string, unknown> }) {
       if (user) {
         token.id = user.id;
         token.fullName = user.fullName;
@@ -241,6 +241,5 @@ export const authOptions = {
 };
 
 export const auth = () => {
-  const { getServerSession } = require("next-auth");
   return getServerSession(authOptions);
 };

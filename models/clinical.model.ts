@@ -73,7 +73,7 @@ export interface IPatient extends Document {
   lastLoginIp?: string;
   get fullName(): string;
   dateOfDeath: Date;
-  causeOfDeath: String;
+  causeOfDeath?: string;
 }
 
 const PatientSchema = new Schema<IPatient>(
@@ -279,7 +279,7 @@ export interface IEMR extends Document {
   treatmentPlan?: string;
   notes?: string;
   followUpDate?: Date;
-  attachments?: any[];
+  attachments?: Array<{ name?: string; url?: string; publicId?: string; fileType?: string }>;
   createdBy: mongoose.Types.ObjectId; // ← ADD THIS
 }
 

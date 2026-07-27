@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
     ArrowLeft, Calendar, FileText, Edit2, Clock, Printer, Download, Trash2, Hash,
@@ -69,9 +69,11 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
         queryFn: () => axios.get(`/api/appointments/${appointmentId}`).then(r => r.data),
     });
 
-    const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<UpdateAppointmentInput>({
+    const { register, handleSubmit, reset, setValue, control, formState: { errors } } = useForm<UpdateAppointmentInput>({
         resolver: zodResolver(updateAppointmentSchema),
     });
+
+    const scheduledTime = useWatch({ control, name: "scheduledTime" });
 
     const updateMutation = useMutation({
         mutationFn: (data: UpdateAppointmentInput) => {
@@ -135,9 +137,9 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
     };
 
     const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const newStatus = e.target.value;
+        const newStatus = e.target.value as UpdateAppointmentInput["status"];
         setValue("status", newStatus);
-        setSelectedStatus(newStatus);
+        setSelectedStatus(newStatus || "");
         setShowCancelReason(newStatus === "cancelled");
         if (newStatus !== "cancelled") setCancelReason("");
     };
@@ -320,8 +322,8 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
                             <Select {...register("scheduledTime")} error={!!errors.scheduledTime}>
                                 <option value="">Select time</option>
                                 {TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
-                                {watch("scheduledTime") && !TIME_SLOTS.includes(watch("scheduledTime") || "") && (
-                                    <option value={watch("scheduledTime")}>{watch("scheduledTime")}</option>
+                                {scheduledTime && !TIME_SLOTS.includes(scheduledTime || "") && (
+                                    <option value={scheduledTime}>{scheduledTime}</option>
                                 )}
                             </Select>
                         </FormField>

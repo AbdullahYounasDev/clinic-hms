@@ -18,7 +18,7 @@ interface LabTestDetail {
     _id: string; labTestId: string;
     patient: { _id: string; firstName: string; lastName: string; patientId: string };
     requestedBy: { _id: string; firstName: string; lastName: string };
-    tests: { catalogId?: string; testName: string; testCode?: string; category: string; cost: number }[];
+    tests: { catalogId?: string | { _id: string }; testName: string; testCode?: string; category: string; cost: number }[];
     invoiceId?: { _id: string; invoiceNumber: string };
     status: string; priority: string; totalCost: number; isPaid: boolean;
     sampleCollectedAt?: string; sampleCollectedBy?: { firstName: string; lastName: string };
@@ -102,8 +102,8 @@ export function LabTestsTab({ test, canUpdate, id }: LabTestsTabProps) {
 
     const openEditTests = () => {
         const ids = test.tests
-            .map(t => typeof t.catalogId === "object" && t.catalogId ? t.catalogId._id : (t.catalogId || ""))
-            .filter(Boolean) as string[];
+            .map(t => typeof t.catalogId === "object" && t.catalogId ? t.catalogId._id : (typeof t.catalogId === "string" ? t.catalogId : ""))
+            .filter(Boolean);
         setSelectedTests(ids);
         setEditTestsOpen(true);
     };
@@ -333,7 +333,7 @@ export function LabTestsTab({ test, canUpdate, id }: LabTestsTabProps) {
                                         </div>
                                         <Button
                                             size="sm"
-                                            onClick={() => router.push(`/billing/${test.invoiceId._id}`)}
+                                            onClick={() => router.push(`/billing/${test.invoiceId?._id}`)}
                                         >
                                             <FileText className="w-3.5 h-3.5" /> View
                                         </Button>
@@ -360,7 +360,7 @@ export function LabTestsTab({ test, canUpdate, id }: LabTestsTabProps) {
                                         </Select>
                                         {!test.isPaid && (
                                             <p className="text-[10px] text-amber-600 mt-1">
-                                                Pay first to enable "Delivered" status
+                                                Pay first to enable &quot;Delivered&quot; status
                                             </p>
                                         )}
                                     </FormField>

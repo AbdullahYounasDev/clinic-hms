@@ -80,9 +80,11 @@ export function LabInvoiceSection({ watchedItems, setValue, register }: Props) {
   }, []);
 
   // --- Reset highlighted on filter change ---
-  useEffect(() => {
+  const [prevFilteredCatalog, setPrevFilteredCatalog] = useState(filteredCatalog);
+  if (prevFilteredCatalog !== filteredCatalog) {
+    setPrevFilteredCatalog(filteredCatalog);
     setHighlightedCatalogIndex(-1);
-  }, [filteredCatalog]);
+  }
 
   // --- Patient type handlers ---
   const handlePatientTypeChange = (type: "walkin" | "registered") => {

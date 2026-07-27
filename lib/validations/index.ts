@@ -528,6 +528,7 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type CreatePatientInput = z.infer<typeof createPatientSchema>;
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
+export type UpdateAppointmentInput = z.infer<typeof updateAppointmentSchema>;
 export type CreateEMRInput = z.infer<typeof createEMRSchema>;
 export type CreatePrescriptionInput = z.infer<typeof createPrescriptionSchema>;
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;

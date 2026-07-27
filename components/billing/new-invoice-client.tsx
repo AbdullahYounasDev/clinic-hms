@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
@@ -47,7 +47,7 @@ export function NewInvoiceClient() {
   const [selectedDoctor, setSelectedDoctor] = useState("");
   const [selectedPatient, setSelectedPatient] = useState("");
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, control, setValue, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
       invoiceType: "opd",
       items: [],
@@ -57,11 +57,11 @@ export function NewInvoiceClient() {
     },
   });
 
-  const invoiceType = watch("invoiceType");
-  const watchedItems = watch("items") || [];
-  const watchDiscount = watch("discount");
-  const watchDiscountType = watch("discountType");
-  const watchTaxRate = watch("taxRate");
+  const invoiceType = useWatch({ control, name: "invoiceType" });
+  const watchedItems = useWatch({ control, name: "items" }) || [];
+  const watchDiscount = useWatch({ control, name: "discount" }) || 0;
+  const watchDiscountType = useWatch({ control, name: "discountType" }) || "fixed";
+  const watchTaxRate = useWatch({ control, name: "taxRate" }) || 0;
 
   const subtotal = watchedItems.reduce((sum, item) => sum + (item.total || 0), 0);
   const discountAmount = watchDiscountType === "percentage" ? (subtotal * watchDiscount) / 100 : watchDiscount;
@@ -69,7 +69,7 @@ export function NewInvoiceClient() {
   const total = subtotal - discountAmount + taxAmount;
 
   const createMutation = useMutation({
-    mutationFn: (d: any) => axios.post("/api/invoice", d),
+    mutationFn: (d: Record<string, unknown>) => axios.post("/api/invoice", d),
     onSuccess: (res) => {
       toast.success("Invoice created successfully!");
       router.push(`/billing/${res.data.data._id}`);

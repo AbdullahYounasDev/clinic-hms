@@ -61,11 +61,12 @@ export function EditMedicineModal({ open, onClose, medicine, onUpdate, isPending
     const [scannerStarting, setScannerStarting] = useState(false);
     const [scannerError, setScannerError] = useState("");
     const [savingBarcode, setSavingBarcode] = useState(false);
+    const savingBarcodeRef = useRef(false);
     const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
     const scannerRef = useRef<Html5Qrcode | null>(null);
 
     useEffect(() => {
-        if (medicine) {
+        if (open && medicine) {
             const supplierId = typeof medicine.supplier === "object" && medicine.supplier?._id ? medicine.supplier._id : medicine.supplier || "";
             reset({
                 name: medicine.name,
@@ -86,7 +87,7 @@ export function EditMedicineModal({ open, onClose, medicine, onUpdate, isPending
             });
             setBarcodeValue(medicine.barcode || "");
         }
-    }, [medicine, reset]);
+    }, [open, medicine, reset]);
 
     const stopScanner = useCallback(async () => {
         if (scannerRef.current) {
@@ -104,10 +105,11 @@ export function EditMedicineModal({ open, onClose, medicine, onUpdate, isPending
     }, []);
 
     const handleScanSuccess = useCallback(async (decodedText: string) => {
-        if (savingBarcode) return;
+        if (savingBarcodeRef.current) return;
         await stopScanner();
 
         const code = decodedText.trim();
+        savingBarcodeRef.current = true;
         setSavingBarcode(true);
         setScannerError("");
 
@@ -120,9 +122,10 @@ export function EditMedicineModal({ open, onClose, medicine, onUpdate, isPending
             const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
             setScannerError(msg || "Failed to save barcode. Please try again.");
         } finally {
+            savingBarcodeRef.current = false;
             setSavingBarcode(false);
         }
-    }, [savingBarcode, stopScanner, medicine?._id]);
+    }, [stopScanner, medicine?._id]);
 
     // --- Start camera when scanner modal opens ---
     useEffect(() => {

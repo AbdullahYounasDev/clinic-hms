@@ -16,7 +16,10 @@ interface HeaderProps { session: Session }
 export function Header({ session }: HeaderProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("theme") === "dark";
+  });
   const { toggleMobile } = useSidebar();
   const { clinicName, logoUrl } = useClinicSettings();
   const canSendDeveloperReport =
@@ -24,12 +27,10 @@ export function Header({ session }: HeaderProps) {
     (session.user.permissions || []).includes("developer_reports:create");
 
   useEffect(() => {
-    const stored = localStorage.getItem("theme");
-    if (stored === "dark") {
-      setIsDark(true);
+    if (isDark) {
       document.documentElement.classList.add("dark");
     }
-  }, []);
+  }, [isDark]);
 
   const toggleDark = () => {
     const next = !isDark;

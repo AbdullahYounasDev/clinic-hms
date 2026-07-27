@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Modal, FormField, Input, Select, Button, Alert } from "@/components/ui";
 import { updateExpenseSchema, UpdateExpenseInput } from "@/lib/validations";
@@ -40,14 +40,14 @@ export function EditExpenseModal({ open, onClose, expense, onUpdate, isPending, 
     const [filesToRemove, setFilesToRemove] = useState<number[]>([]);
     const [uploadError, setUploadError] = useState("");
 
-    const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<UpdateExpenseInput>({
+    const { register, handleSubmit, reset, control, formState: { errors } } = useForm<UpdateExpenseInput>({
         resolver: zodResolver(updateExpenseSchema),
     });
 
-    const status = watch("status");
+    const status = useWatch({ control, name: "status" });
 
     useEffect(() => {
-        if (expense) {
+        if (open && expense) {
             reset({
                 title: expense.title,
                 category: expense.category as any,
@@ -63,7 +63,7 @@ export function EditExpenseModal({ open, onClose, expense, onUpdate, isPending, 
             setFilesToRemove([]);
             setUploadError("");
         }
-    }, [expense, reset]);
+    }, [open, expense, reset]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);

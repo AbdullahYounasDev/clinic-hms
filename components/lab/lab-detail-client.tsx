@@ -37,7 +37,7 @@ interface LabTestDetail {
     labTestId: string;
     patient: { _id: string; firstName: string; lastName: string; patientId: string; age?: number; gender?: string };
     requestedBy: { _id: string; firstName: string; lastName: string };
-    tests: { catalogId?: string; testName: string; testCode?: string; category: string; cost: number }[];
+    tests: { catalogId?: string | { _id: string }; testName: string; testCode?: string; category: string; cost: number }[];
     status: string;
     priority: string;
     totalCost: number;

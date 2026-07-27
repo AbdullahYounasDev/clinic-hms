@@ -49,13 +49,13 @@ export function getIpFromHeaders(headers: Headers): string {
 
 // ─── PERMISSION CHECK (pure — safe everywhere) ────────────
 export function hasPermission(
-  userPermissions: string[],
-  isSuperAdmin: boolean,
+  userPermissions: string[] | undefined,
+  isSuperAdmin: boolean | undefined,
   module: string,
   action: string
 ): boolean {
   if (isSuperAdmin) return true;
-  return userPermissions.includes(`${module}:${action}`);
+  return (userPermissions || []).includes(`${module}:${action}`);
 }
 
 // ─── DATE HELPERS ─────────────────────────────────────────

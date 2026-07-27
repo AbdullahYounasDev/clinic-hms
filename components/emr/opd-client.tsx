@@ -26,17 +26,18 @@ interface EMRRecord {
 export function OPDClient() {
   const { data: session } = useSession();
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  const urlAppointmentId = searchParams.get("appointmentId");
+  const urlPatientId = searchParams.get("patientId");
+
   const [page, setPage] = useState(1);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(() => Boolean(urlAppointmentId && urlPatientId));
   const [createError, setCreateError] = useState("");
   const [activeTab, setActiveTab] = useState<"emr" | "rx">("emr");
   const [search, setSearch] = useState("");
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const [symptomInput, setSymptomInput] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
-  const searchParams = useSearchParams();
-  const urlAppointmentId = searchParams.get("appointmentId");
-  const urlPatientId = searchParams.get("patientId");
 
   const isSA = session?.user.isSuperAdmin;
   const perms = session?.user.permissions || [];
@@ -79,7 +80,6 @@ export function OPDClient() {
   useEffect(() => {
     if (urlAppointmentId && urlPatientId) {
       setValue("patient", urlPatientId);
-      setCreateOpen(true);
     }
   }, [urlAppointmentId, urlPatientId, setValue]);
 

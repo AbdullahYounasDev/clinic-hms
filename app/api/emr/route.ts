@@ -40,9 +40,10 @@ export async function GET(req: NextRequest) {
   if (patient) filter.patient = patient;
 
   if (fromDate || toDate) {
-    (filter as any).visitDate = {};
-    if (fromDate) (filter as any).visitDate.$gte = new Date(fromDate);
-    if (toDate) (filter as any).visitDate.$lte = new Date(toDate);
+    const visitDateFilter: Record<string, Date> = {};
+    if (fromDate) visitDateFilter.$gte = new Date(fromDate);
+    if (toDate) visitDateFilter.$lte = new Date(toDate);
+    filter.visitDate = visitDateFilter;
   }
 
   const [records, total] = await Promise.all([
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest) {
       doctor: doctor._id,
       emr: emr._id,
       appointment: parsed.data.appointment || null,
-      medicines: parsed.data.prescriptions.map((p: any) => ({
+      medicines: parsed.data.prescriptions.map((p: Record<string, unknown>) => ({
         medicineName: p.medicine,
         genericName: p.genericName || "",
         strength: p.strength || "",

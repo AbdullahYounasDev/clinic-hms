@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import axios from "axios";
 import {
   Card, CardBody, Button, FormField, Input, Select, Alert, Badge, Modal,
@@ -80,7 +80,7 @@ export function SettingsClient() {
   const settings = settingsData?.data;
   const departments: { _id: string; name: string; code: string; description?: string; isActive: boolean }[] = deptsData?.data || [];
 
-  const { register, handleSubmit, reset, watch, setValue } = useForm<{
+  const { register, handleSubmit, reset, control, setValue } = useForm<{
     clinicName: string;
     clinicTagline: string;
     clinicAddress: string;
@@ -106,8 +106,8 @@ export function SettingsClient() {
     }
   }, [settings, reset]);
 
-  const currentLogo = watch("logo") || "/logo.png";
-  const currentLogoPublicId = watch("logoPublicId");
+  const currentLogo = useWatch({ control, name: "logo" }) || "/logo.png";
+  const currentLogoPublicId = useWatch({ control, name: "logoPublicId" });
 
   const saveMutation = useMutation({
     mutationFn: (d: Record<string, unknown>) => axios.put("/api/settings", d),

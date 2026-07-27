@@ -126,7 +126,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
                 doctor: doctor?._id || existing.doctor,
                 emr: id,
                 appointment: body.appointment || existing.appointment || undefined,
-                medicines: body.prescriptions.map((p: any) => ({
+                medicines: body.prescriptions.map((p: Record<string, unknown>) => ({
                     medicineName: p.medicine,
                     genericName: p.genericName || "",
                     strength: p.strength || "",

@@ -121,8 +121,10 @@ export function ClinicProvider({
     },
     // Pre-populate with server-passed data so first render has real values immediately
     initialData: initialSettings,
+    // Forces TanStack Query to refetch on mount in the background immediately
+    initialDataUpdatedAt: 0,
     // Still refetch in background to pick up any settings changes
-    staleTime: 30_000,
+    staleTime: 10_000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });

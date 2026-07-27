@@ -2,7 +2,7 @@
 "use client";
 
 import { Modal, FormField, Input, Select, Button, Alert } from "@/components/ui";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { updatePatientSchema, UpdatePatientInput } from "@/lib/validations";
 import { useEffect, useState } from "react";
@@ -10,11 +10,11 @@ import { Eye, EyeOff } from "lucide-react";
 
 export function EditPatientModal({ open, onClose, patient, onUpdate, isPending, error }: any) {
     const [showPortalPassword, setShowPortalPassword] = useState(false);
-    const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<UpdatePatientInput>({
+    const { register, handleSubmit, reset, setValue, watch, control, formState: { errors } } = useForm<UpdatePatientInput>({
         resolver: zodResolver(updatePatientSchema),
     });
 
-    const status = watch("status");
+    const status = useWatch({ control, name: "status" });
     const isDeceased = status === "deceased";
 
     useEffect(() => {

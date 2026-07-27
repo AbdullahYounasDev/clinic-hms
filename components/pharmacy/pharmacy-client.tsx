@@ -44,6 +44,7 @@ export function PharmacyClient() {
   const canDelete = isSA || perms.includes("pharmacy:delete");
 
   const activeFiltersCount = [lowStockOnly, category].filter(Boolean).length;
+  const [thirtyDaysFromNow] = useState(() => Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   const { data, isLoading } = useQuery({
     queryKey: ["medicines", page, search, lowStockOnly, category],
@@ -231,7 +232,7 @@ export function PharmacyClient() {
             ) : (
               medicines.map(m => {
                 const isLow = m.currentStock <= m.minStockLevel;
-                const isExpiring = m.expiryDate && new Date(m.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                const isExpiring = m.expiryDate && new Date(m.expiryDate).getTime() < thirtyDaysFromNow;
                 return (
                   <tr key={m._id} className={cn(isLow && "bg-amber-50/40")}>
                     <Td>
@@ -322,7 +323,7 @@ export function PharmacyClient() {
             ) : (
               medicines.map(m => {
                 const isLow = m.currentStock <= m.minStockLevel;
-                const isExpiring = m.expiryDate && new Date(m.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                const isExpiring = m.expiryDate && new Date(m.expiryDate).getTime() < thirtyDaysFromNow;
                 return (
                   <tr key={m._id} className={cn(isLow && "bg-amber-50/40")}>
                     <Td>

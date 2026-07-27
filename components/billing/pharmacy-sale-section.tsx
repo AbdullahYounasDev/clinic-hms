@@ -89,9 +89,11 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    useEffect(() => {
+    const [prevFilteredMedicines, setPrevFilteredMedicines] = useState(filteredMedicines);
+    if (prevFilteredMedicines !== filteredMedicines) {
+        setPrevFilteredMedicines(filteredMedicines);
         setHighlightedIndex(-1);
-    }, [filteredMedicines]);
+    }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (!isDropdownOpen) {

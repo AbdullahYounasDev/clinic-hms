@@ -179,15 +179,16 @@ export async function POST(req: NextRequest) {
     ipAddress: getIpFromHeaders(req.headers),
   });
 
-  const doctorData = populated?.doctor as any;
-  if (doctorData?.user?._id) {
-    const patientData = populated?.patient as any;
+  const doctorData = populated?.doctor as Record<string, unknown> | null | undefined;
+  const doctorUser = doctorData?.user as Record<string, unknown> | null | undefined;
+  if (doctorUser?._id) {
+    const patientData = populated?.patient as Record<string, unknown> | null | undefined;
     const formattedDate = populated?.scheduledDate ? new Date(populated.scheduledDate).toLocaleDateString() : "";
     await NotificationService.create({
-      userId: doctorData.user._id.toString(),
+      userId: String(doctorUser._id),
       type: "appointment_reminder",
       title: "New Appointment",
-      message: `${patientData?.firstName} ${patientData?.lastName} has an appointment on ${formattedDate} at ${populated?.scheduledTime}`,
+      message: `${patientData?.firstName || ""} ${patientData?.lastName || ""} has an appointment on ${formattedDate} at ${populated?.scheduledTime}`,
       priority: "medium",
       actionUrl: `/appointments/${appointment._id}`,
       metadata: { appointmentId: appointment._id.toString() },

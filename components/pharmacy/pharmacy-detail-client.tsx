@@ -43,6 +43,9 @@ export function PharmacyDetailClient({ medicineId }: { medicineId: string }) {
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [deleteError, setDeleteError] = useState("");
 
+    const [nowTimestamp] = useState(() => Date.now());
+    const [thirtyDaysFromNow] = useState(() => Date.now() + 30 * 24 * 60 * 60 * 1000);
+
     const isSA = session?.user?.isSuperAdmin;
     const perms = session?.user?.permissions || [];
     const canUpdate = isSA || perms.includes("pharmacy:update");
@@ -115,8 +118,8 @@ export function PharmacyDetailClient({ medicineId }: { medicineId: string }) {
     }
 
     const isLow = medicine.currentStock <= medicine.minStockLevel;
-    const isExpiring = medicine.expiryDate && new Date(medicine.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    const isExpired = medicine.expiryDate && new Date(medicine.expiryDate) < new Date();
+    const isExpiring = medicine.expiryDate && new Date(medicine.expiryDate).getTime() < thirtyDaysFromNow;
+    const isExpired = medicine.expiryDate && new Date(medicine.expiryDate).getTime() < nowTimestamp;
     const profitMargin = medicine.sellingPrice - medicine.unitCost;
     const profitPercent = medicine.unitCost > 0 ? (profitMargin / medicine.unitCost) * 100 : 0;
 

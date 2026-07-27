@@ -18,26 +18,24 @@ interface Message {
 
 export function AIChatClient() {
     const { data: session } = useSession();
-    const [messages, setMessages] = useState<Message[]>([]);
+    const userId = session?.user?.id || "anonymous";
+    const storageKey = `ai_chat_${userId}`;
+    const userName = session?.user?.fullName || "User";
+
+    const [messages, setMessages] = useState<Message[]>(() => {
+        if (typeof window === "undefined") return [];
+        try {
+            const saved = localStorage.getItem(storageKey);
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
     const [input, setInput] = useState("");
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [imageBase64, setImageBase64] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const userId = session?.user?.id || "anonymous";
-    const storageKey = `ai_chat_${userId}`;
-    const userName = session?.user?.fullName || "User";
-
-    useEffect(() => {
-        const saved = localStorage.getItem(storageKey);
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed);
-            } catch { }
-        }
-    }, [storageKey]);
 
     useEffect(() => {
         if (messages.length > 0) localStorage.setItem(storageKey, JSON.stringify(messages));
