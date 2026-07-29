@@ -74,7 +74,12 @@ export function DoctorsClient() {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<{
     user: string; specialization: string; department?: string;
     experience: number; consultationFee: number; qualifications: string; bio?: string;
-  }>();
+    appointmentDuration: number;
+  }>({
+    defaultValues: {
+      appointmentDuration: 30,
+    },
+  });
 
   const createMutation = useMutation({
     mutationFn: (d: Record<string, unknown>) => axios.post("/api/doctors", d),
@@ -387,12 +392,23 @@ export function DoctorsClient() {
               </Select>
             </FormField>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <FormField label="Experience (years)">
               <Input type="number" {...register("experience", { valueAsNumber: true })} placeholder="0" />
             </FormField>
             <FormField label="Consultation Fee (PKR)" required>
               <Input type="number" {...register("consultationFee", { valueAsNumber: true })} placeholder="0" required />
+            </FormField>
+            <FormField label="Default Slot Duration">
+              <Select {...register("appointmentDuration", { valueAsNumber: true })}>
+                <option value={5}>5 mins</option>
+                <option value={10}>10 mins</option>
+                <option value={15}>15 mins</option>
+                <option value={20}>20 mins</option>
+                <option value={30}>30 mins (Default)</option>
+                <option value={45}>45 mins</option>
+                <option value={60}>60 mins (1 Hour)</option>
+              </Select>
             </FormField>
           </div>
           <FormField label="Qualifications" hint="Comma separated e.g. MBBS, FCPS">

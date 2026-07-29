@@ -165,6 +165,65 @@ export function formatDateTime(date: Date | string): string {
   return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
+export function formatTime12Hour(timeStr?: string | null): string {
+  if (!timeStr || !timeStr.trim()) return "";
+  const str = timeStr.trim();
+
+  if (/am|pm/i.test(str)) {
+    const match12 = str.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (match12) {
+      const h = String(parseInt(match12[1], 10)).padStart(2, "0");
+      const m = match12[2];
+      const p = match12[3].toUpperCase();
+      return `${h}:${m} ${p}`;
+    }
+    return str.toUpperCase();
+  }
+
+  const match24 = str.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match24) return str;
+
+  let hours = parseInt(match24[1], 10);
+  const minutes = match24[2];
+  if (isNaN(hours)) return str;
+
+  const period = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+
+  const formattedHours = String(hours).padStart(2, "0");
+  return `${formattedHours}:${minutes} ${period}`;
+}
+
+export function timeToMinutes(timeStr?: string | null): number {
+  if (!timeStr || !timeStr.trim()) return -1;
+  const str = timeStr.trim();
+
+  const match12 = str.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (match12) {
+    let hours = parseInt(match12[1], 10);
+    const minutes = parseInt(match12[2], 10);
+    const period = match12[3].toUpperCase();
+    if (isNaN(hours) || isNaN(minutes)) return -1;
+
+    if (period === "PM" && hours < 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+
+    return hours * 60 + minutes;
+  }
+
+  const match24 = str.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (match24) {
+    const hours = parseInt(match24[1], 10);
+    const minutes = parseInt(match24[2], 10);
+    if (isNaN(hours) || isNaN(minutes)) return -1;
+    return hours * 60 + minutes;
+  }
+
+  return -1;
+}
+
+
 // ─── LAB RESULT HELPERS ───────────────────────────────────
 export function normalizeCatalogId(catalogId: unknown): string | undefined {
   if (!catalogId) return undefined;

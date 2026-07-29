@@ -143,6 +143,33 @@ PatientSchema.pre("save", async function () {
 });
 
 // ─── DOCTOR MODEL ─────────────────────────────────────────
+export interface IDoctorLeave {
+  _id?: mongoose.Types.ObjectId | string;
+  startDate: Date;
+  endDate: Date;
+  reason?: string;
+  notes?: string;
+  createdAt?: Date;
+}
+
+export interface IDoctorDaySchedule {
+  isWorking: boolean;
+  startTime: string; // e.g. "09:00"
+  endTime: string;   // e.g. "17:00"
+  breakStart?: string; // e.g. "13:00"
+  breakEnd?: string;   // e.g. "14:00"
+}
+
+export interface IDoctorWeeklySchedule {
+  monday?: IDoctorDaySchedule;
+  tuesday?: IDoctorDaySchedule;
+  wednesday?: IDoctorDaySchedule;
+  thursday?: IDoctorDaySchedule;
+  friday?: IDoctorDaySchedule;
+  saturday?: IDoctorDaySchedule;
+  sunday?: IDoctorDaySchedule;
+}
+
 export interface IDoctor extends Document {
   user: mongoose.Types.ObjectId;
   doctorId: string;
@@ -152,11 +179,49 @@ export interface IDoctor extends Document {
   consultationFee: number;
   department: mongoose.Types.ObjectId;
   availability: Record<string, { isWorking: boolean; slots: { start: string; end: string }[] }>;
+  weeklySchedule?: IDoctorWeeklySchedule;
+  appointmentDuration: number;
+  leaves: IDoctorLeave[];
   bio?: string;
   languages: string[];
   isAvailable: boolean;
   status: string;
 }
+
+const DoctorLeaveSchema = new Schema(
+  {
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+    reason: { type: String, default: "" },
+    notes: { type: String, default: "" },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const DoctorDayScheduleSchema = new Schema(
+  {
+    isWorking: { type: Boolean, default: true },
+    startTime: { type: String, default: "09:00" },
+    endTime: { type: String, default: "17:00" },
+    breakStart: { type: String, default: "" },
+    breakEnd: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
+const DoctorWeeklyScheduleSchema = new Schema(
+  {
+    monday: { type: DoctorDayScheduleSchema },
+    tuesday: { type: DoctorDayScheduleSchema },
+    wednesday: { type: DoctorDayScheduleSchema },
+    thursday: { type: DoctorDayScheduleSchema },
+    friday: { type: DoctorDayScheduleSchema },
+    saturday: { type: DoctorDayScheduleSchema },
+    sunday: { type: DoctorDayScheduleSchema },
+  },
+  { _id: false }
+);
 
 const DoctorSchema = new Schema<IDoctor>(
   {
@@ -171,6 +236,9 @@ const DoctorSchema = new Schema<IDoctor>(
       type: Schema.Types.Mixed,
       default: {},
     },
+    weeklySchedule: { type: DoctorWeeklyScheduleSchema, default: {} },
+    appointmentDuration: { type: Number, default: 30 },
+    leaves: [DoctorLeaveSchema],
     bio: { type: String },
     languages: [{ type: String }],
     isAvailable: { type: Boolean, default: true },
@@ -249,6 +317,17 @@ AppointmentSchema.pre("save", async function () {
 
 // Compound index for fast per-doctor, per-day queue queries
 AppointmentSchema.index({ doctor: 1, queueDate: 1, status: 1 });
+
+// Database-level unique partial index to prevent double bookings & race conditions
+AppointmentSchema.index(
+  { doctor: 1, scheduledDate: 1, scheduledTime: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ["scheduled", "checked_in", "in_consultation", "completed"] },
+    },
+  }
+);
 
 // ─── EMR MODEL ────────────────────────────────────────────
 export interface IEMR extends Document {

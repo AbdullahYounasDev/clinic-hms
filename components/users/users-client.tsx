@@ -26,10 +26,12 @@ interface User {
 interface DoctorFormData {
   specialization: string; department: string; experience: string;
   consultationFee: string; qualifications: string; bio: string;
+  appointmentDuration: number;
 }
 
 const EMPTY_DOCTOR_FORM: DoctorFormData = {
   specialization: "", department: "", experience: "", consultationFee: "", qualifications: "", bio: "",
+  appointmentDuration: 30,
 };
 
 export function UsersClient() {
@@ -107,6 +109,7 @@ export function UsersClient() {
             department: doctorData.department || undefined,
             experience: doctorData.experience ? Number(doctorData.experience) : 0,
             consultationFee: doctorData.consultationFee !== "" ? Number(doctorData.consultationFee) : 0,
+            appointmentDuration: doctorData.appointmentDuration ? Number(doctorData.appointmentDuration) : 30,
             qualifications: doctorData.qualifications ? doctorData.qualifications.split(",").map(q => q.trim()).filter(Boolean) : [],
             bio: doctorData.bio || undefined,
           });
@@ -304,7 +307,7 @@ export function UsersClient() {
                   </Select>
                 </FormField>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <FormField label="Experience (years)">
                   <Input
                     type="number"
@@ -324,6 +327,20 @@ export function UsersClient() {
                     error={!!doctorErrors.consultationFee}
                     placeholder="0"
                   />
+                </FormField>
+                <FormField label="Default Slot Duration">
+                  <Select
+                    value={doctorData.appointmentDuration}
+                    onChange={e => setDoctorData(p => ({ ...p, appointmentDuration: Number(e.target.value) }))}
+                  >
+                    <option value={5}>5 mins</option>
+                    <option value={10}>10 mins</option>
+                    <option value={15}>15 mins</option>
+                    <option value={20}>20 mins</option>
+                    <option value={30}>30 mins (Default)</option>
+                    <option value={45}>45 mins</option>
+                    <option value={60}>60 mins (1 Hour)</option>
+                  </Select>
                 </FormField>
               </div>
               <FormField label="Qualifications" hint="Comma separated e.g. MBBS, FCPS">

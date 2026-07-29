@@ -20,7 +20,13 @@ export async function GET(req: NextRequest) {
   const isActive = sp.get("isActive");
   const filter: Record<string, unknown> = {};
   applyIsActiveFilter(filter, isActive);
-  if (search) filter.$or = [{ name: { $regex: search, $options: "i" } }, { genericName: { $regex: search, $options: "i" } }];
+  if (search) {
+    filter.$or = [
+      { name: { $regex: search, $options: "i" } },
+      { genericName: { $regex: search, $options: "i" } },
+      { barcode: { $regex: search, $options: "i" } },
+    ];
+  }
   if (lowStock) filter.$expr = { $lte: ["$currentStock", "$minStockLevel"] };
   if (category) filter.category = category;
   const [medicines, total] = await Promise.all([

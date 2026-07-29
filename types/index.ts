@@ -144,21 +144,22 @@ export interface InsuranceDetails {
 }
 
 // ─── DOCTORS ──────────────────────────────────────────────
-export interface Doctor {
-  _id: string;
-  user: string | User;
-  doctorId: string;
-  specialization: string;
-  qualifications: string[];
-  experience: number; // years
-  consultationFee: number;
-  department: string | Department;
-  availability: WeeklySchedule;
-  bio?: string;
-  languages: string[];
-  isAvailable: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+export interface DoctorLeave {
+  _id?: string;
+  startDate: string | Date;
+  endDate: string | Date;
+  reason?: string;
+  notes?: string;
+  createdAt?: string | Date;
+}
+
+export interface DaySchedule {
+  isWorking: boolean;
+  startTime?: string;   // "09:00"
+  endTime?: string;     // "17:00"
+  breakStart?: string;  // "13:00"
+  breakEnd?: string;    // "14:00"
+  slots?: TimeSlot[];
 }
 
 export interface WeeklySchedule {
@@ -171,14 +172,49 @@ export interface WeeklySchedule {
   sunday?: DaySchedule;
 }
 
-export interface DaySchedule {
-  isWorking: boolean;
-  slots: TimeSlot[];
-}
-
 export interface TimeSlot {
   start: string; // "09:00"
   end: string;   // "17:00"
+}
+
+export interface SlotInfo {
+  time: string;           // "09:00"
+  displayTime: string;    // "09:00 AM"
+  available: boolean;
+  reason?: "booked" | "break" | "not_working" | "on_leave" | "clinic_holiday" | "clinic_closed" | "past_time";
+  reasonText?: string;
+}
+
+export interface SlotResult {
+  doctorId: string;
+  date: string;
+  appointmentDuration: number;
+  isWorkingDay: boolean;
+  isHoliday: boolean;
+  holidayReason?: string;
+  isOnLeave: boolean;
+  leaveReason?: string;
+  slots: SlotInfo[];
+}
+
+export interface Doctor {
+  _id: string;
+  user: string | User;
+  doctorId: string;
+  specialization: string;
+  qualifications: string[];
+  experience: number; // years
+  consultationFee: number;
+  department: string | Department;
+  availability?: WeeklySchedule;
+  weeklySchedule?: WeeklySchedule;
+  appointmentDuration?: number;
+  leaves?: DoctorLeave[];
+  bio?: string;
+  languages: string[];
+  isAvailable: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // ─── DEPARTMENTS ──────────────────────────────────────────

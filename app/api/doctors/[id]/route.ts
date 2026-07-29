@@ -42,8 +42,16 @@ export async function PUT(req: NextRequest, { params }: Params) {
   // Allowed fields to update
   const allowed = [
     "specialization", "qualifications", "experience", "consultationFee",
-    "department", "bio", "languages", "isAvailable"
+    "department", "bio", "languages", "isAvailable", "weeklySchedule", "appointmentDuration"
   ];
+
+  if (body.weeklySchedule) {
+    const { SchedulingService } = await import("@/services/scheduling.service");
+    const schedValidation = await SchedulingService.validateDoctorSchedule(body.weeklySchedule);
+    if (!schedValidation.valid) {
+      return apiError(schedValidation.error || "Invalid doctor schedule", 422);
+    }
+  }
 
   const updateData: Record<string, unknown> = {};
   for (const key of allowed) {

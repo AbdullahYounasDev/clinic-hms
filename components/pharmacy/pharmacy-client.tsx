@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { Plus, Search, AlertTriangle, Filter, ChevronDown, X, Package, Layers, Trash2 } from "lucide-react";
+import { Plus, Search, AlertTriangle, Filter, ChevronDown, X, Package, Layers, Trash2, ScanLine } from "lucide-react";
 import {
   Card, Table, Th, Td, Button,
   EmptyState, Pagination, Badge, StatCard, Select, Modal,
@@ -13,6 +13,7 @@ import {
 import { formatDate, cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 import { MedicineCreateModal } from "@/components/pharmacy/create-medicine-modal";
+import { PharmacyScannerModal } from "@/components/pharmacy/pharmacy-scanner-modal";
 import { toast } from "sonner";
 
 interface Medicine {
@@ -36,6 +37,7 @@ export function PharmacyClient() {
   const [category, setCategory] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   const isSA = session?.user.isSuperAdmin;
@@ -98,37 +100,59 @@ export function PharmacyClient() {
         <StatCard title="Categories" value={CATEGORIES.length} icon={Layers} loading={isLoading} />
       </div>
 
-      {/* Search + Filter Toggle */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
+      {/* Search + Scanner + Filter Toggle */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name or generic name..."
+            placeholder="Search by name, generic name, or barcode..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-gray-300 
-                       bg-white placeholder:text-gray-400 text-gray-600
-                       focus:outline-none focus:border-teal-600"
+            className="w-full pl-9 pr-8 py-2 text-xs rounded-lg border border-gray-300 
+                       bg-white placeholder:text-gray-400 text-gray-700
+                       focus:outline-none focus:border-teal-600 shadow-2xs"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => { setSearch(""); setPage(1); }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
+
+        {/* Barcode Scanner Button */}
         <button
+          type="button"
+          onClick={() => setScannerOpen(true)}
+          title="Scan Barcode"
+          className="shrink-0 p-2 rounded-lg border border-gray-300 text-gray-500 cursor-pointer hover:bg-gray-50 transition-colors"
+        >
+          <ScanLine className="w-4 h-4" />
+        </button>
+
+        {/* Filters Toggle Button */}
+        <button
+          type="button"
           onClick={() => setFiltersOpen(!filtersOpen)}
           className={cn(
-            "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border cursor-pointer shrink-0",
+            "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border cursor-pointer shrink-0 transition-colors shadow-2xs",
             filtersOpen || activeFiltersCount > 0
-              ? "bg-teal-600 text-white border-teal-600"
-              : "bg-white border-gray-300 text-gray-600"
+              ? "bg-teal-600 text-white border-teal-600 hover:bg-teal-700"
+              : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
           )}
         >
           <Filter className="w-3.5 h-3.5" />
-          Filters
+          <span className="text-xs">Filters</span>
           {activeFiltersCount > 0 && (
             <span className="bg-white text-teal-600 text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-semibold">
               {activeFiltersCount}
             </span>
           )}
-          <ChevronDown className={cn("w-3 h-3", filtersOpen && "rotate-180")} />
+          <ChevronDown className={cn("w-3 h-3 transition-transform", filtersOpen && "rotate-180")} />
         </button>
       </div>
 
@@ -428,6 +452,15 @@ export function PharmacyClient() {
       </div>
 
       <MedicineCreateModal open={createOpen} onClose={() => setCreateOpen(false)} />
+
+      <PharmacyScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScanResult={(query) => {
+          setSearch(query);
+          setPage(1);
+        }}
+      />
 
       <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Medicine" size="sm">
         <div className="space-y-4 mt-2">

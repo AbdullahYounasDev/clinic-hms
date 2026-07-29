@@ -11,7 +11,7 @@ import {
   Plus, Trash2, Upload, Building2, Clock, CalendarOff, Settings
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { cn } from "@/lib/utils";
+import { cn, formatTime12Hour, timeToMinutes } from "@/lib/utils";
 import { toast } from "sonner";
 import { useClinicSettings, WorkingDay, ClosingDay } from "@/components/providers/clinic-provider";
 
@@ -24,6 +24,15 @@ const TABS = [
 
 const DAYS_OF_WEEK = [
   "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+];
+
+const TIME_OPTIONS_12H = [
+  "06:00 AM", "06:30 AM", "07:00 AM", "07:30 AM", "08:00 AM", "08:30 AM",
+  "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+  "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM", "02:30 PM",
+  "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM",
+  "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM", "08:00 PM", "08:30 PM",
+  "09:00 PM", "09:30 PM", "10:00 PM", "10:30 PM", "11:00 PM", "11:30 PM",
 ];
 
 export function SettingsClient() {
@@ -48,10 +57,10 @@ export function SettingsClient() {
   const [dayError, setDayError] = useState("");
   const [newDay, setNewDay] = useState<WorkingDay>({
     day: "Monday",
-    openingTime: "08:00",
+    openingTime: "08:00 AM",
     breakStart: "",
     breakEnd: "",
-    closingTime: "17:00",
+    closingTime: "05:00 PM",
     isOpen: true,
   });
 
@@ -213,11 +222,11 @@ export function SettingsClient() {
 
   // Working Days logic & validation
   const workingDays: WorkingDay[] = settings?.workingDays || [
-    { day: "Monday", openingTime: "08:00", breakStart: "13:00", breakEnd: "14:00", closingTime: "17:00", isOpen: true },
-    { day: "Tuesday", openingTime: "08:00", breakStart: "13:00", breakEnd: "14:00", closingTime: "17:00", isOpen: true },
-    { day: "Wednesday", openingTime: "08:00", breakStart: "13:00", breakEnd: "14:00", closingTime: "17:00", isOpen: true },
-    { day: "Thursday", openingTime: "08:00", breakStart: "13:00", breakEnd: "14:00", closingTime: "17:00", isOpen: true },
-    { day: "Friday", openingTime: "08:00", breakStart: "13:00", breakEnd: "14:00", closingTime: "17:00", isOpen: true },
+    { day: "Monday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
+    { day: "Tuesday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
+    { day: "Wednesday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
+    { day: "Thursday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
+    { day: "Friday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
   ];
 
   const handleAddWorkingDay = () => {
@@ -229,7 +238,15 @@ export function SettingsClient() {
       return;
     }
 
-    if (closingTime <= openingTime) {
+    const openMin = timeToMinutes(openingTime);
+    const closeMin = timeToMinutes(closingTime);
+
+    if (openMin === -1 || closeMin === -1) {
+      setDayError("Please select valid opening and closing times.");
+      return;
+    }
+
+    if (closeMin <= openMin) {
       setDayError("Closing time must be later than opening time.");
       return;
     }
@@ -240,19 +257,35 @@ export function SettingsClient() {
     }
 
     if (breakStart && breakEnd) {
-      if (breakStart < openingTime || breakStart >= closingTime) {
+      const breakStartMin = timeToMinutes(breakStart);
+      const breakEndMin = timeToMinutes(breakEnd);
+
+      if (breakStartMin === -1 || breakEndMin === -1) {
+        setDayError("Please select valid break times.");
+        return;
+      }
+
+      if (breakStartMin < openMin || breakStartMin >= closeMin) {
         setDayError("Break Start must fall between opening and closing times.");
         return;
       }
-      if (breakEnd <= breakStart || breakEnd > closingTime) {
+      if (breakEndMin <= breakStartMin || breakEndMin > closeMin) {
         setDayError("Break End must be after Break Start and before or at Closing Time.");
         return;
       }
     }
 
+    const dayToSave: WorkingDay = {
+      ...newDay,
+      openingTime: formatTime12Hour(openingTime),
+      closingTime: formatTime12Hour(closingTime),
+      breakStart: breakStart ? formatTime12Hour(breakStart) : "",
+      breakEnd: breakEnd ? formatTime12Hour(breakEnd) : "",
+    };
+
     // Check if day already exists
     const filteredDays = workingDays.filter(d => d.day !== day);
-    const updatedDays = [...filteredDays, { ...newDay }].sort(
+    const updatedDays = [...filteredDays, dayToSave].sort(
       (a, b) => DAYS_OF_WEEK.indexOf(a.day) - DAYS_OF_WEEK.indexOf(b.day)
     );
 
@@ -263,10 +296,10 @@ export function SettingsClient() {
           setIsAddDayOpen(false);
           setNewDay({
             day: "Monday",
-            openingTime: "08:00",
+            openingTime: "08:00 AM",
             breakStart: "",
             breakEnd: "",
-            closingTime: "17:00",
+            closingTime: "05:00 PM",
             isOpen: true,
           });
         },
@@ -496,10 +529,10 @@ export function SettingsClient() {
                       {workingDays.map((d) => (
                         <tr key={d.day} className="hover:bg-gray-50/80 transition-colors">
                           <td className="px-4 py-3 font-semibold text-gray-900">{d.day}</td>
-                          <td className="px-4 py-3 text-teal-700 font-medium">{d.openingTime}</td>
-                          <td className="px-4 py-3 text-gray-600">{d.breakStart || "—"}</td>
-                          <td className="px-4 py-3 text-gray-600">{d.breakEnd || "—"}</td>
-                          <td className="px-4 py-3 text-teal-700 font-medium">{d.closingTime}</td>
+                          <td className="px-4 py-3 text-teal-700 font-medium">{formatTime12Hour(d.openingTime)}</td>
+                          <td className="px-4 py-3 text-gray-600">{d.breakStart ? formatTime12Hour(d.breakStart) : "—"}</td>
+                          <td className="px-4 py-3 text-gray-600">{d.breakEnd ? formatTime12Hour(d.breakEnd) : "—"}</td>
+                          <td className="px-4 py-3 text-teal-700 font-medium">{formatTime12Hour(d.closingTime)}</td>
                           {canEdit && (
                             <td className="px-4 py-3 text-right">
                               <Button
@@ -524,10 +557,10 @@ export function SettingsClient() {
                       <div className="space-y-1">
                         <div className="text-xs font-semibold text-gray-900">{d.day}</div>
                         <div className="text-xs text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <span className="text-teal-700 font-medium">{d.openingTime} - {d.closingTime}</span>
+                          <span className="text-teal-700 font-medium">{formatTime12Hour(d.openingTime)} - {formatTime12Hour(d.closingTime)}</span>
                           {d.breakStart && d.breakEnd && (
                             <span className="text-gray-400 text-[11px]">
-                              (Break: {d.breakStart}-{d.breakEnd})
+                              (Break: {formatTime12Hour(d.breakStart)} - {formatTime12Hour(d.breakEnd)})
                             </span>
                           )}
                         </div>
@@ -567,40 +600,62 @@ export function SettingsClient() {
                 </FormField>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField label="Opening Time" required>
-                    <Input
-                      type="time"
-                      value={newDay.openingTime}
+                  <FormField label="Opening Time (12-Hour)" required>
+                    <Select
+                      value={formatTime12Hour(newDay.openingTime)}
                       onChange={(e) => setNewDay((p) => ({ ...p, openingTime: e.target.value }))}
-                    />
+                    >
+                      {TIME_OPTIONS_12H.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </Select>
                   </FormField>
 
-                  <FormField label="Closing Time" required>
-                    <Input
-                      type="time"
-                      value={newDay.closingTime}
+                  <FormField label="Closing Time (12-Hour)" required>
+                    <Select
+                      value={formatTime12Hour(newDay.closingTime)}
                       onChange={(e) => setNewDay((p) => ({ ...p, closingTime: e.target.value }))}
-                    />
+                    >
+                      {TIME_OPTIONS_12H.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </Select>
                   </FormField>
                 </div>
 
                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-                  <span className="text-xs font-semibold text-gray-700 block">Break Hours (Optional)</span>
+                  <span className="text-xs font-semibold text-gray-700 block">Break Hours (Optional - 12-Hour)</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField label="Break Start">
-                      <Input
-                        type="time"
-                        value={newDay.breakStart || ""}
+                      <Select
+                        value={newDay.breakStart ? formatTime12Hour(newDay.breakStart) : ""}
                         onChange={(e) => setNewDay((p) => ({ ...p, breakStart: e.target.value }))}
-                      />
+                      >
+                        <option value="">No Break Start</option>
+                        {TIME_OPTIONS_12H.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </Select>
                     </FormField>
 
                     <FormField label="Break End">
-                      <Input
-                        type="time"
-                        value={newDay.breakEnd || ""}
+                      <Select
+                        value={newDay.breakEnd ? formatTime12Hour(newDay.breakEnd) : ""}
                         onChange={(e) => setNewDay((p) => ({ ...p, breakEnd: e.target.value }))}
-                      />
+                      >
+                        <option value="">No Break End</option>
+                        {TIME_OPTIONS_12H.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </Select>
                     </FormField>
                   </div>
                 </div>

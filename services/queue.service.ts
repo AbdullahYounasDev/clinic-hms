@@ -181,21 +181,7 @@ export class QueueService {
       return inConsultation.queueNumber;
     }
 
-    const lastCompleted = await Appointment.findOne({
-      doctor: doctorId,
-      ...dateMatch,
-      status: "completed",
-      queueNumber: { $gt: 0 },
-    })
-      .sort({ queueNumber: -1 })
-      .select("queueNumber")
-      .lean();
-
-    if (lastCompleted?.queueNumber != null) {
-      return lastCompleted.queueNumber + 1;
-    }
-
-    return 1;
+    return 0;
   }
 
   /**
@@ -320,14 +306,10 @@ export class QueueService {
       const nowServing =
         r.nowServingToken != null && r.nowServingToken > 0
           ? r.nowServingToken
-          : r.waiting > 0
-            ? r.lastCompletedToken != null && r.lastCompletedToken > 0
-              ? r.lastCompletedToken + 1
-              : 1
-            : 0;
+          : 0;
 
       // Only include doctors who have active waiting/in-consultation queue tokens for today
-      if (activeQueueCount === 0) {
+      if (activeQueueCount === 0 && r.completed === 0) {
         continue;
       }
 
@@ -365,7 +347,7 @@ export class QueueService {
         doctorName: `Dr. ${r.userDoc.firstName} ${r.userDoc.lastName}`,
         specialization: r.doctorDoc.specialization,
         nowServing,
-        totalTokens: activeQueueCount,
+        totalTokens: activeQueueCount + r.completed,
         waiting: r.waiting,
         completed: r.completed,
         currentPatient,
@@ -411,7 +393,19 @@ export class QueueService {
 
     const nowServing = await this.getNowServing(doctor._id.toString());
     const queueNum = appointment.queueNumber ?? 0;
-    const patientsAhead = Math.max(0, queueNum === 0 ? 0 : queueNum - nowServing);
+    
+    let patientsAhead = 0;
+    if (appointment.status !== "in_consultation" && queueNum > 0) {
+      patientsAhead = await Appointment.countDocuments({
+        doctor: doctor._id,
+        $or: [
+          { scheduledDate: { $gte: start, $lte: end } },
+          { queueDate: { $gte: start, $lte: end } },
+        ],
+        queueNumber: { $gt: 0, $lt: queueNum },
+        status: { $in: ["checked_in", "in_consultation"] },
+      });
+    }
 
     return {
       hasActiveQueue: true,

@@ -141,14 +141,24 @@ export function DashboardClient({ session }: { session: Session }) {
                     <div className="flex items-center gap-4 shrink-0">
                       <div className="text-center">
                         <p className="text-sm font-bold text-gray-800">{q.totalTokens}</p>
-                        <p className="text-[10px] text-gray-400 font-medium">Total</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Total Today</p>
+                      </div>
+                      <div className="h-6 w-px bg-gray-200" />
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-amber-600">{q.waiting}</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Waiting</p>
                       </div>
                       <div className="h-6 w-px bg-gray-200" />
                       <div className="text-center">
                         <p className="text-sm font-bold text-teal-600">
-                          {q.nowServing === 0 ? "0" : `#${q.nowServing}`}
+                          {q.nowServing === 0 ? "None" : `#${q.nowServing}`}
                         </p>
                         <p className="text-[10px] text-gray-400 font-medium">Serving</p>
+                      </div>
+                      <div className="h-6 w-px bg-gray-200" />
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-emerald-600">{q.completed}</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Completed</p>
                       </div>
                     </div>
                   </div>

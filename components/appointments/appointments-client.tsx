@@ -124,6 +124,25 @@ export function AppointmentsClient() {
   const watchedDoctor = useWatch({ control, name: "doctor" });
   const watchedDate = useWatch({ control, name: "scheduledDate" });
   const watchedType = useWatch({ control, name: "type" });
+  const watchedScheduledTime = useWatch({ control, name: "scheduledTime" });
+  const watchedDuration = useWatch({ control, name: "duration" });
+
+  const formSelectedDoctorObj = doctors.find((d: any) => String(d._id) === String(watchedDoctor));
+  const doctorDefaultDuration = formSelectedDoctorObj?.appointmentDuration || 30;
+  const canOverrideDuration = isSA || perms.includes("appointments:create") || perms.includes("appointments:override_duration");
+
+  const isCustomDuration = watchedDoctor && watchedDuration !== doctorDefaultDuration;
+
+  const { data: slotsData, isFetching: slotsFetching } = useQuery({
+    queryKey: ["available-slots", watchedDoctor, watchedDate, watchedDuration],
+    queryFn: () =>
+      axios
+        .get("/api/appointments/available-slots", {
+          params: { doctor: watchedDoctor, date: watchedDate, duration: watchedDuration || 30 },
+        })
+        .then((r) => r.data),
+    enabled: createOpen && !!watchedDoctor && !!watchedDate,
+  });
 
   const { data: nextQueueData, isFetching: nextQueueFetching } = useQuery({
     queryKey: ["queue-next", watchedDoctor, watchedDate],
@@ -145,6 +164,7 @@ export function AppointmentsClient() {
     mutationFn: (d: CreateAppointmentInput) => axios.post("/api/appointments", d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["appointments"] });
+      qc.invalidateQueries({ queryKey: ["available-slots"] });
       qc.invalidateQueries({ queryKey: ["queue-status-appointments"] });
       qc.invalidateQueries({ queryKey: ["queue-status"] });
       qc.invalidateQueries({ queryKey: ["queue-next"] });
@@ -164,6 +184,7 @@ export function AppointmentsClient() {
     mutationFn: (id: string) => axios.delete(`/api/appointments/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["appointments"] });
+      qc.invalidateQueries({ queryKey: ["available-slots"] });
       qc.invalidateQueries({ queryKey: ["queue-status-appointments"] });
       qc.invalidateQueries({ queryKey: ["queue-status"] });
       setDeleteConfirm({ open: false, id: "", label: "" });
@@ -218,12 +239,20 @@ export function AppointmentsClient() {
                     Total: <span className="font-bold">{q.totalTokens}</span>
                   </span>
                   <div className="h-4 w-px bg-teal-200" />
+                  <span className="text-xs font-semibold text-amber-800">
+                    Waiting: <span className="font-bold">{q.waiting}</span>
+                  </span>
+                  <div className="h-4 w-px bg-teal-200" />
                   <div className="flex items-center gap-1">
                     <Hash className="w-3.5 h-3.5 text-teal-600" />
                     <span className="text-xs font-semibold text-teal-700">
-                      Serving: <span className="font-bold">{q.nowServing === 0 ? "0" : `#${q.nowServing}`}</span>
+                      Serving: <span className="font-bold">{q.nowServing === 0 ? "None" : `#${q.nowServing}`}</span>
                     </span>
                   </div>
+                  <div className="h-4 w-px bg-teal-200" />
+                  <span className="text-xs font-semibold text-emerald-700">
+                    Completed: <span className="font-bold">{q.completed}</span>
+                  </span>
                 </div>
               ))}
             </div>
@@ -531,6 +560,8 @@ export function AppointmentsClient() {
                     const doctorId = e.target.value;
                     const doctor = doctors.find((d: any) => d._id === doctorId);
                     if (doctor?.consultationFee) setValue("consultationFee", doctor.consultationFee);
+                    if (doctor?.appointmentDuration) setValue("duration", doctor.appointmentDuration);
+                    setValue("scheduledTime", "");
                   },
                 })}
                 error={!!errors.doctor}
@@ -542,30 +573,43 @@ export function AppointmentsClient() {
               </Select>
             </FormField>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <FormField label="Date" required error={errors.scheduledDate?.message}>
-              <Input type="date" {...register("scheduledDate")} error={!!errors.scheduledDate} />
-            </FormField>
-            <FormField label="Time" required error={errors.scheduledTime?.message}>
-              <Select {...register("scheduledTime")} error={!!errors.scheduledTime}>
-                <option value="">Select time</option>
-                {TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Queue No.">
               <Input
-                value={watchedDoctor && watchedDate ? (nextQueueFetching && watchedType !== "emergency" ? "…" : previewQueue) : ""}
-                placeholder={!watchedDoctor || !watchedDate ? "Select doctor & date" : ""}
-                disabled
+                type="date"
+                {...register("scheduledDate", {
+                  onChange: () => setValue("scheduledTime", ""),
+                })}
+                error={!!errors.scheduledDate}
               />
             </FormField>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <FormField label="Duration (mins)">
-              <Select {...register("duration", { valueAsNumber: true })}>
-                {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60].map(d => (
-                  <option key={d} value={d}>{d} min</option>
-                ))}
+            <FormField
+              label={
+                <span className="flex items-center gap-1.5">
+                  <span>Est. Duration</span>
+                  {isCustomDuration && (
+                    <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-1.5 py-0.5 rounded border border-amber-200">
+                      Custom Override
+                    </span>
+                  )}
+                </span>
+              }
+            >
+              <Select
+                {...register("duration", {
+                  valueAsNumber: true,
+                  onChange: () => setValue("scheduledTime", ""),
+                })}
+                disabled={!canOverrideDuration}
+              >
+                <option value={5}>5 mins</option>
+                <option value={10}>10 mins</option>
+                <option value={15}>15 mins</option>
+                <option value={20}>20 mins</option>
+                <option value={30}>30 mins</option>
+                <option value={45}>45 mins</option>
+                <option value={60}>60 mins (1 Hour)</option>
+                <option value={120}>120 mins (2 Hours)</option>
               </Select>
             </FormField>
             <FormField label="Type">
@@ -576,13 +620,102 @@ export function AppointmentsClient() {
                 <option value="teleconsultation">Teleconsultation</option>
               </Select>
             </FormField>
-            <FormField label="Consultation Fee">
-              <Input type="number" {...register("consultationFee", { valueAsNumber: true })} placeholder="0" disabled />
+            <FormField label="Queue No.">
+              <Input
+                value={watchedDoctor && watchedDate ? (nextQueueFetching && watchedType !== "emergency" ? "…" : previewQueue) : ""}
+                placeholder={!watchedDoctor || !watchedDate ? "Select doctor & date" : ""}
+                disabled
+              />
             </FormField>
           </div>
-          <FormField label="Chief Complaint">
-            <Input {...register("chiefComplaint")} placeholder="Reason for visit..." />
-          </FormField>
+
+          {/* Dynamic Available Time Slot Selector */}
+          <div className="space-y-2 pt-2 border-t border-gray-200">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold text-gray-800">
+                Select Time Slot <span className="text-red-500">*</span>
+              </label>
+              {slotsData?.data?.appointmentDuration && (
+                <span className="text-[11px] text-gray-500 font-medium">
+                  Slot Duration: {slotsData.data.appointmentDuration} mins
+                </span>
+              )}
+            </div>
+
+            {!watchedDoctor || !watchedDate ? (
+              <div className="p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-center text-xs text-gray-500">
+                Please select a doctor and date to calculate available appointment slots.
+              </div>
+            ) : slotsFetching ? (
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-teal-600" />
+                Calculating available slots...
+              </div>
+            ) : slotsData?.data?.isHoliday ? (
+              <Alert type="warning">
+                Clinic is closed on this date: <strong>{slotsData.data.holidayReason || "Clinic Holiday"}</strong>
+              </Alert>
+            ) : slotsData?.data?.isOnLeave ? (
+              <Alert type="warning">
+                Doctor is on leave on this date: <strong>{slotsData.data.leaveReason || "On Leave"}</strong>
+              </Alert>
+            ) : slotsData?.data?.isWorkingDay === false ? (
+              <Alert type="warning">
+                Doctor is not scheduled to work on this day.
+              </Alert>
+            ) : slotsData?.data?.slots?.length === 0 ? (
+              <Alert type="warning">
+                No time slots available for the selected day.
+              </Alert>
+            ) : (
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1 border rounded-lg bg-gray-50/50">
+                  {slotsData?.data?.slots?.map((s: { time: string; displayTime: string; available: boolean; reasonText?: string }) => {
+                    const isSelected = watchedScheduledTime === s.time;
+                    return (
+                      <button
+                        key={s.time}
+                        type="button"
+                        disabled={!s.available}
+                        onClick={() => {
+                          setValue("scheduledTime", s.time, { shouldValidate: true });
+                          setCreateError("");
+                        }}
+                        className={cn(
+                          "flex flex-col items-center justify-center py-2 px-1.5 rounded-md text-xs font-medium transition-all border cursor-pointer",
+                          isSelected
+                            ? "bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-600/30"
+                            : s.available
+                              ? "bg-white border-teal-200 text-teal-900 hover:bg-teal-50 hover:border-teal-400"
+                              : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                        )}
+                        title={!s.available ? s.reasonText || "Unavailable" : `Book for ${s.displayTime}`}
+                      >
+                        <span>{s.displayTime}</span>
+                        {!s.available && (
+                          <span className="text-[9px] font-normal leading-tight text-gray-500 mt-0.5">
+                            {s.reasonText}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {errors.scheduledTime && (
+                  <p className="text-xs text-red-500 font-medium">{errors.scheduledTime.message}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField label="Consultation Fee (PKR)">
+              <Input type="number" {...register("consultationFee", { valueAsNumber: true })} placeholder="0" disabled />
+            </FormField>
+            <FormField label="Chief Complaint">
+              <Input {...register("chiefComplaint")} placeholder="Reason for visit..." />
+            </FormField>
+          </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
             <Button type="button" variant="secondary" onClick={() => { setCreateOpen(false); reset(); }}>
               Cancel

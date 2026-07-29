@@ -54,15 +54,19 @@ export function PatientQueueBanner({
         <div className="h-10 w-px bg-teal-200" />
         <div className="text-center">
           <p className="text-2xl font-bold text-gray-700">
-            {data.nowServing === 0 ? "0" : `#${data.nowServing}`}
+            {data.nowServing === 0 ? "None" : `#${data.nowServing}`}
           </p>
           <p className="text-[10px] text-gray-500 mt-1.5">Now Serving</p>
         </div>
         <div className="h-10 w-px bg-teal-200" />
         <div className="text-center">
-          <p className="text-2xl font-bold text-amber-600">{data.patientsAhead}</p>
+          <p className="text-2xl font-bold text-amber-600">{data.status === "in_consultation" ? "0" : data.patientsAhead}</p>
           <p className="text-[10px] text-gray-500 mt-1.5">
-            {data.patientsAhead === 0 ? "You're next!" : "Ahead of you"}
+            {data.status === "in_consultation"
+              ? "Serving You"
+              : data.patientsAhead === 0
+                ? "You're next!"
+                : "Ahead of you"}
           </p>
         </div>
       </div>
@@ -72,9 +76,15 @@ export function PatientQueueBanner({
           <span className="text-xs font-semibold text-teal-800">Your consultation is in progress</span>
         </div>
       )}
+      {data.status === "checked_in" && (
+        <div className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 w-fit">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <span className="text-xs font-semibold text-amber-800">Checked In — Waiting in queue</span>
+        </div>
+      )}
       {data.status === "scheduled" && (
         <p className="mt-3 text-[10px] text-teal-600">
-          Your appointment is scheduled{data.scheduledTime ? ` at ${data.scheduledTime}` : ""}. Queue number is ready.
+          Your appointment is scheduled{data.scheduledTime ? ` at ${data.scheduledTime}` : ""}. Please check in at reception upon arrival.
         </p>
       )}
     </div>

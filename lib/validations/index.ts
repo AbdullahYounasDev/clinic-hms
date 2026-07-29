@@ -149,6 +149,34 @@ export const updatePatientSchema = z.object({
 
 export type UpdatePatientInput = z.infer<typeof updatePatientSchema>;
 
+// ─── DOCTOR SCHEMAS ──────────────────────────────────────────
+export const createDoctorSchema = z.object({
+  user: z.string().min(1, "User is required"),
+  specialization: z.string().min(1, "Specialization is required"),
+  department: z.string().optional(),
+  qualifications: z.array(z.string()).optional(),
+  experience: z.number().min(0).default(0),
+  consultationFee: z.number().min(0).default(0),
+  appointmentDuration: z.number().min(5).max(180).default(30),
+  bio: z.string().optional(),
+  languages: z.array(z.string()).optional(),
+});
+
+export const updateDoctorSchema = z.object({
+  specialization: z.string().optional(),
+  department: z.string().optional(),
+  qualifications: z.array(z.string()).optional(),
+  experience: z.number().min(0).optional(),
+  consultationFee: z.number().min(0).optional(),
+  appointmentDuration: z.number().min(5).max(180).optional(),
+  bio: z.string().optional(),
+  languages: z.array(z.string()).optional(),
+  isAvailable: z.boolean().optional(),
+});
+
+export type CreateDoctorInput = z.infer<typeof createDoctorSchema>;
+export type UpdateDoctorInput = z.infer<typeof updateDoctorSchema>;
+
 // ─── APPOINTMENT SCHEMAS ──────────────────────────────────
 export const createAppointmentSchema = z.object({
   patient: z.string().min(1, "Patient is required"),
@@ -440,6 +468,32 @@ export const updateExpenseSchema = z.object({
   approvedBy: z.string().optional(),
 });
 
+
+export const doctorDayScheduleSchema = z.object({
+  isWorking: z.boolean().default(true),
+  startTime: z.string().optional().default("09:00"),
+  endTime: z.string().optional().default("17:00"),
+  breakStart: z.string().optional().default(""),
+  breakEnd: z.string().optional().default(""),
+});
+
+export const doctorWeeklyScheduleSchema = z.object({
+  monday: doctorDayScheduleSchema.optional(),
+  tuesday: doctorDayScheduleSchema.optional(),
+  wednesday: doctorDayScheduleSchema.optional(),
+  thursday: doctorDayScheduleSchema.optional(),
+  friday: doctorDayScheduleSchema.optional(),
+  saturday: doctorDayScheduleSchema.optional(),
+  sunday: doctorDayScheduleSchema.optional(),
+});
+
+export const doctorLeaveSchema = z.object({
+  date: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  reason: z.string().optional(),
+  notes: z.string().optional(),
+});
 
 export const workingDaySchema = z.object({
   day: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),

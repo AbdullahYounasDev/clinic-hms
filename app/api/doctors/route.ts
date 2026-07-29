@@ -69,11 +69,18 @@ export async function POST(req: NextRequest) {
   if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "doctors", "create")) return apiError("Forbidden", 403);
   const body = await req.json();
   if (!body.user || !body.specialization) return apiError("User and specialization are required", 422);
+
+  const durationNum = Number(body.appointmentDuration);
+  const appointmentDuration = !isNaN(durationNum) && durationNum > 0 ? durationNum : 30;
+
   await connectDB();
   const { Doctor } = await import("@/models/clinical.model");
   const exists = await Doctor.findOne({ user: body.user });
   if (exists) return apiError("Doctor profile already exists for this user", 409);
-  const doctor = await Doctor.create(body);
+  const doctor = await Doctor.create({
+    ...body,
+    appointmentDuration,
+  });
   const populated = await Doctor.findById(doctor._id).populate("user", "firstName lastName email phone").populate("department", "name code").lean();
   const { auditLog: log } = await import("@/lib/auth/audit");
   await log({ userId: session.user.id, action: "create", module: "doctors", description: `Created doctor profile ${doctor.doctorId}`, resourceId: doctor._id.toString() });

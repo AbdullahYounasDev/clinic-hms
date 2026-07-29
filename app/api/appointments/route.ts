@@ -135,26 +135,43 @@ export async function POST(req: NextRequest) {
     return apiError("Cannot create appointment for archived patient", 403);
   }
 
-  // Check doctor availability (basic check — no double booking)
-  const conflict = await Appointment.findOne({
-    doctor: parsed.data.doctor,
-    scheduledDate: new Date(parsed.data.scheduledDate),
-    scheduledTime: parsed.data.scheduledTime,
-    status: { $nin: ["cancelled", "no_show", "archived"] },
-  });
+  // Check doctor default duration vs custom requested duration permission
+  const { Doctor } = await import("@/models/clinical.model");
+  const doctorDoc = await Doctor.findById(parsed.data.doctor).lean();
+  if (!doctorDoc) return apiError("Doctor not found", 404);
 
-  if (conflict) {
-    return apiError("Doctor already has an appointment at this time", 409);
+  const defaultDuration = doctorDoc.appointmentDuration || 30;
+  if (parsed.data.duration && parsed.data.duration !== defaultDuration) {
+    const canOverride = session.user.isSuperAdmin || hasPermission(session.user.permissions, session.user.isSuperAdmin, "appointments", "create") || hasPermission(session.user.permissions, session.user.isSuperAdmin, "appointments", "override_duration");
+    if (!canOverride) {
+      return apiError("You do not have permission to override the doctor's default appointment duration", 403);
+    }
+  }
+
+  // Validate appointment scheduling rules (clinic hours, doctor schedule, breaks, leave, availability)
+  const { SchedulingService } = await import("@/services/scheduling.service");
+  const validation = await SchedulingService.validateAppointmentBooking(parsed.data);
+  if (!validation.valid) {
+    return apiError(validation.error || "Selected slot is unavailable", 409);
   }
 
   const [sy, sm, sd] = parsed.data.scheduledDate.split("-").map(Number);
   const scheduledDate = new Date(sy, sm - 1, sd, 12, 0, 0, 0);
 
-  const appointment = await Appointment.create({
-    ...parsed.data,
-    scheduledDate,
-    createdBy: session.user.id,
-  });
+  let appointment;
+  try {
+    appointment = await Appointment.create({
+      ...parsed.data,
+      scheduledDate,
+      createdBy: session.user.id,
+    });
+  } catch (err: unknown) {
+    const mongoErr = err as { code?: number };
+    if (mongoErr.code === 11000) {
+      return apiError("This time slot has just been booked by another user. Please select another slot.", 409);
+    }
+    throw err;
+  }
 
   const isEmergency = parsed.data.type === "emergency";
   const queueToken = await QueueService.assignQueueToken(
