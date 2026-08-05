@@ -2,10 +2,11 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
 import { Patient } from "@/models/clinical.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyPatientStatusFilter, isArchivedPatient } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, getIpFromHeaders, applyPatientStatusFilter } from "@/lib/utils";
 import { createPatientSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { resolvePatientPortalFields } from "@/lib/patient-portal-fields";
+import { normalizeCNIC } from "@/lib/utils/cnic-utils";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -28,12 +29,16 @@ export async function GET(req: NextRequest) {
   applyPatientStatusFilter(filter, status);
   if (bloodGroup) filter.bloodGroup = bloodGroup;
   if (search) {
+    const rawSearch = search.trim();
+    const cleanSearch = normalizeCNIC(rawSearch);
     filter.$or = [
       { firstName: { $regex: search, $options: "i" } },
       { lastName: { $regex: search, $options: "i" } },
       { phone: { $regex: search, $options: "i" } },
       { patientId: { $regex: search, $options: "i" } },
       { email: { $regex: search, $options: "i" } },
+      { cnic: { $regex: search, $options: "i" } },
+      ...(cleanSearch ? [{ cnic: cleanSearch }] : []),
     ];
   }
 
@@ -66,28 +71,42 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
-  const { portalPassword, ...patientFields } = parsed.data;
+  const { portalPassword, cnic, ...patientFields } = parsed.data;
+  const normalizedCnic = cnic ? normalizeCNIC(cnic) : undefined;
+
   const resolved = await resolvePatientPortalFields({
     ...patientFields,
+    ...(normalizedCnic ? { cnic: normalizedCnic } : {}),
     ...(portalPassword ? { portalPassword } : {}),
   });
   if (resolved.error) return apiError(resolved.error, 422);
 
-  const patient = await Patient.create({
-    ...resolved.data,
-    registeredBy: session.user.id,
-  });
+  try {
+    const patient = await Patient.create({
+      ...resolved.data,
+      registeredBy: session.user.id,
+    });
 
-  await auditLog({
-    userId: session.user.id,
-    action: "create",
-    module: "patients",
-    description: `Created patient: ${patient.fullName}`,
-    resourceId: patient._id.toString(),
-    resourceType: "Patient",
-    newData: { patientId: patient.patientId, name: patient.fullName },
-    ipAddress: getIpFromHeaders(req.headers),
-  });
+    await auditLog({
+      userId: session.user.id,
+      action: "create",
+      module: "patients",
+      description: `Created patient: ${patient.fullName}`,
+      resourceId: patient._id.toString(),
+      resourceType: "Patient",
+      newData: { patientId: patient.patientId, name: patient.fullName },
+      ipAddress: getIpFromHeaders(req.headers),
+    });
 
-  return apiSuccess(patient, "Patient created successfully", 201);
+    return apiSuccess(patient, "Patient created successfully", 201);
+  } catch (err: unknown) {
+    const mongoError = err as { code?: number; keyPattern?: Record<string, number> };
+    if (mongoError.code === 11000 && mongoError.keyPattern?.cnic) {
+      return apiError("A patient with this CNIC already exists.", 422);
+    }
+    if (mongoError.code === 11000 && mongoError.keyPattern?.email) {
+      return apiError("A patient with this email address already exists.", 422);
+    }
+    throw err;
+  }
 }

@@ -28,6 +28,7 @@ export interface ClinicSettings {
   clinicAddress: string;
   phone: string;
   email: string;
+  timezone?: string;
   workingDays: WorkingDay[];
   closingDays: ClosingDay[];
 }
@@ -41,6 +42,7 @@ const DEFAULT_SETTINGS: ClinicSettings = {
   clinicAddress: "123 Healthcare Avenue, Medical District",
   phone: "+92 300 1234567",
   email: "info@clinichms.com",
+  timezone: "Asia/Karachi",
   workingDays: [
     { day: "Monday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
     { day: "Tuesday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
@@ -61,6 +63,7 @@ interface ClinicContextValue {
   clinicAddress: string;
   phone: string;
   email: string;
+  timezone: string;
   workingDays: WorkingDay[];
   closingDays: ClosingDay[];
 }
@@ -75,6 +78,7 @@ const ClinicContext = createContext<ClinicContextValue>({
   clinicAddress: DEFAULT_SETTINGS.clinicAddress,
   phone: DEFAULT_SETTINGS.phone,
   email: DEFAULT_SETTINGS.email,
+  timezone: DEFAULT_SETTINGS.timezone || "Asia/Karachi",
   workingDays: DEFAULT_SETTINGS.workingDays,
   closingDays: DEFAULT_SETTINGS.closingDays,
 });
@@ -149,6 +153,7 @@ export function ClinicProvider({
       clinicAddress: s.clinicAddress || DEFAULT_SETTINGS.clinicAddress,
       phone: s.phone || DEFAULT_SETTINGS.phone,
       email: s.email || DEFAULT_SETTINGS.email,
+      timezone: s.timezone || DEFAULT_SETTINGS.timezone || "Asia/Karachi",
       workingDays: s.workingDays && s.workingDays.length > 0 ? s.workingDays : DEFAULT_SETTINGS.workingDays,
       closingDays: s.closingDays || [],
     };

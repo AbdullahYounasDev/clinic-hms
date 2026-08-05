@@ -14,6 +14,7 @@ import { useSession } from "next-auth/react";
 import { cn, formatTime12Hour, timeToMinutes } from "@/lib/utils";
 import { toast } from "sonner";
 import { useClinicSettings, WorkingDay, ClosingDay } from "@/components/providers/clinic-provider";
+import { TimezonePicker } from "@/components/settings/timezone-picker";
 
 const TABS = [
   { id: "clinic", label: "Clinic Information", icon: Building2 },
@@ -89,7 +90,7 @@ export function SettingsClient() {
   const settings = settingsData?.data;
   const departments: { _id: string; name: string; code: string; description?: string; isActive: boolean }[] = deptsData?.data || [];
 
-  const { register, handleSubmit, reset, control, setValue } = useForm<{
+  const { register, handleSubmit, reset, control, setValue, watch } = useForm<{
     clinicName: string;
     clinicTagline: string;
     clinicAddress: string;
@@ -98,6 +99,7 @@ export function SettingsClient() {
     logo: string;
     logoPublicId: string;
     clinicType: string;
+    timezone: string;
   }>();
 
   useEffect(() => {
@@ -111,6 +113,7 @@ export function SettingsClient() {
         logo: settings.logo || "/logo.png",
         logoPublicId: settings.logoPublicId || "",
         clinicType: settings.clinicType || "clinic",
+        timezone: settings.timezone || "Asia/Karachi",
       });
     }
   }, [settings, reset]);
@@ -474,6 +477,14 @@ export function SettingsClient() {
                     <Input type="email" {...register("email", { required: true })} disabled={!canEdit} placeholder="info@clinichms.com" />
                   </FormField>
                 </div>
+
+                <FormField label="Clinic Timezone" hint="Authoritative timezone used for business calendar, queue boundaries, and reports">
+                  <TimezonePicker
+                    value={watch("timezone")}
+                    onChange={(val) => setValue("timezone", val, { shouldDirty: true, shouldValidate: true })}
+                    disabled={!canEdit}
+                  />
+                </FormField>
 
                 {canEdit && (
                   <div className="flex justify-end pt-3 border-t border-gray-200">

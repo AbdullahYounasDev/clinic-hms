@@ -15,6 +15,7 @@ const DEFAULT_PUBLIC_SETTINGS = {
   clinicAddress: "123 Healthcare Avenue, Medical District",
   phone: "+92 300 1234567",
   email: "info@clinichms.com",
+  timezone: "Asia/Karachi",
   workingDays: [
     { day: "Monday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
     { day: "Tuesday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
@@ -29,7 +30,7 @@ export async function GET(_req: NextRequest) {
   try {
     await connectDB();
     const settings = await Settings.findOne({}).select(
-      "clinicName clinicTagline clinicType logo logoPublicId clinicAddress phone email workingDays closingDays"
+      "clinicName clinicTagline clinicType logo logoPublicId clinicAddress phone email timezone workingDays closingDays"
     ).lean();
 
     if (!settings) {
@@ -45,6 +46,7 @@ export async function GET(_req: NextRequest) {
       clinicAddress: settings.clinicAddress || DEFAULT_PUBLIC_SETTINGS.clinicAddress,
       phone: settings.phone || DEFAULT_PUBLIC_SETTINGS.phone,
       email: settings.email || DEFAULT_PUBLIC_SETTINGS.email,
+      timezone: settings.timezone || DEFAULT_PUBLIC_SETTINGS.timezone,
       workingDays: settings.workingDays && settings.workingDays.length > 0 ? settings.workingDays : DEFAULT_PUBLIC_SETTINGS.workingDays,
       closingDays: settings.closingDays || [],
     });

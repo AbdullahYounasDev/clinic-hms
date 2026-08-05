@@ -8,6 +8,8 @@ import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { NotificationService } from "@/services/notification.service";
 import { QueueService } from "@/services/queue.service";
 
+import { getClinicTimezone, getClinicDateString, getClinicDayBounds } from "@/lib/time-utils";
+
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return apiError("Unauthorized", 401);
@@ -45,21 +47,15 @@ export async function GET(req: NextRequest) {
   applyAppointmentStatusFilter(filter, status || null);
   if (patientId) filter.patient = patientId;
 
+  const clinicTz = await getClinicTimezone();
+
   if (today) {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    const d = now.getDate();
-    filter.scheduledDate = { 
-      $gte: new Date(y, m, d, 0, 0, 0, 0), 
-      $lte: new Date(y, m, d, 23, 59, 59, 999) 
-    };
+    const todayStr = getClinicDateString(new Date(), clinicTz);
+    const { start, end } = getClinicDayBounds(todayStr, clinicTz);
+    filter.scheduledDate = { $gte: start, $lte: end };
   } else if (date) {
-    const [y, m, d] = date.split("-").map(Number);
-    filter.scheduledDate = { 
-      $gte: new Date(y, m - 1, d, 0, 0, 0, 0), 
-      $lte: new Date(y, m - 1, d, 23, 59, 59, 999) 
-    };
+    const { start, end } = getClinicDayBounds(date, clinicTz);
+    filter.scheduledDate = { $gte: start, $lte: end };
   }
 
   // Search by patient name, doctor name, or appointment ID
@@ -155,8 +151,8 @@ export async function POST(req: NextRequest) {
     return apiError(validation.error || "Selected slot is unavailable", 409);
   }
 
-  const [sy, sm, sd] = parsed.data.scheduledDate.split("-").map(Number);
-  const scheduledDate = new Date(sy, sm - 1, sd, 12, 0, 0, 0);
+  const { toClinicNoonDate } = await import("@/lib/time-utils");
+  const scheduledDate = toClinicNoonDate(parsed.data.scheduledDate);
 
   let appointment;
   try {

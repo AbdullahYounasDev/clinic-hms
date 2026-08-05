@@ -202,7 +202,14 @@ export function LabClient() {
                   <Td className="max-w-[200px] truncate text-gray-600">{t.tests?.map(x => x.testName).join(", ")}</Td>
                   <Td><Badge variant={t.priority === "stat" ? "danger" : t.priority === "urgent" ? "warning" : "default"}>{t.priority}</Badge></Td>
                   <Td><StatusBadge status={t.status} /></Td>
-                  <Td className="text-gray-600">{formatCurrency(t.totalCost)}</Td>
+                  <Td>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-600">{formatCurrency(t.totalCost)}</span>
+                      <Badge variant={t.isPaid ? "success" : "warning"} className="text-[10px]">
+                        {t.isPaid ? "Paid" : "Unpaid"}
+                      </Badge>
+                    </div>
+                  </Td>
                   <Td className="text-gray-400">{formatDate(t.createdAt)}</Td>
                   <Td>
                     <div className="flex items-center gap-1">
@@ -239,6 +246,9 @@ export function LabClient() {
                 <div className="flex items-center gap-2 mt-0.5">
                   <Badge variant={t.priority === "stat" ? "danger" : t.priority === "urgent" ? "warning" : "default"}>{t.priority}</Badge>
                   <span className="text-xs text-gray-500">{formatCurrency(t.totalCost)}</span>
+                  <Badge variant={t.isPaid ? "success" : "warning"} className="text-[10px]">
+                    {t.isPaid ? "Paid" : "Unpaid"}
+                  </Badge>
                 </div>
                 <div className="text-xs text-gray-400 mt-0.5 truncate">{t.tests?.map(x => x.testName).join(", ")}</div>
               </div>

@@ -36,13 +36,13 @@ export function PatientLoginForm() {
     setIsLoading(true);
     try {
       const result = await signIn("patient-credentials", {
-        login: data.login,
+        email: data.email,
         password: data.password,
         redirect: false,
       });
 
       if (result?.error) {
-        toast.error("Invalid email, phone, or password.");
+        toast.error("Invalid email or password.");
         setIsLoading(false);
         return;
       }
@@ -86,22 +86,22 @@ export function PatientLoginForm() {
 
         <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900 mb-1">Sign in</h2>
-          <p className="text-xs text-gray-500 mb-5">Use your email or phone number and portal password</p>
+          <p className="text-xs text-gray-500 mb-5">Use your email address and portal password</p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email or phone</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email address</label>
               <input
-                type="text"
-                autoComplete="username"
-                placeholder="patient@email.com or +92 300..."
+                type="email"
+                autoComplete="email"
+                placeholder="patient@email.com"
                 className={cn(
                   "w-full px-4 py-3 rounded-xl border-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none",
-                  errors.login ? "border-red-400 bg-red-50" : "border-gray-200 focus:border-teal-500"
+                  errors.email ? "border-red-400 bg-red-50" : "border-gray-200 focus:border-teal-500"
                 )}
-                {...register("login")}
+                {...register("email")}
               />
-              {errors.login && <p className="text-red-500 text-xs mt-1">{errors.login.message}</p>}
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
             </div>
 
             <div>

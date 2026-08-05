@@ -59,30 +59,24 @@ export function hasPermission(
 }
 
 // ─── DATE HELPERS ─────────────────────────────────────────
+import { toClinicDateString } from "@/lib/time-utils";
+
 export function formatDate(date: Date | string, format = "DD/MM/YYYY"): string {
   if (!date) return "";
-  let day: string;
-  let month: string;
-  let year: number;
+  const dateStr = toClinicDateString(date);
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return "";
 
-  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}/.test(date)) {
-    const [y, m, d] = date.slice(0, 10).split("-").map(Number);
-    year = y;
-    month = String(m).padStart(2, "0");
-    day = String(d).padStart(2, "0");
-  } else {
-    const dObj = new Date(date);
-    if (dObj.getUTCHours() === 0 && dObj.getUTCMinutes() === 0 && dObj.getUTCSeconds() === 0) {
-      day = String(dObj.getUTCDate()).padStart(2, "0");
-      month = String(dObj.getUTCMonth() + 1).padStart(2, "0");
-      year = dObj.getUTCFullYear();
-    } else {
-      day = String(dObj.getDate()).padStart(2, "0");
-      month = String(dObj.getMonth() + 1).padStart(2, "0");
-      year = dObj.getFullYear();
-    }
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const day = String(d).padStart(2, "0");
+  const month = String(m).padStart(2, "0");
+  const year = String(y);
+
+  if (format === "MMMM D, YYYY" || format === "MMMM d, YYYY") {
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    return `${monthNames[m - 1]} ${d}, ${y}`;
   }
-  return format.replace("DD", day).replace("MM", month).replace("YYYY", String(year));
+
+  return format.replace("DD", day).replace("MM", month).replace("YYYY", year);
 }
 
 export function isToday(date: Date): boolean {

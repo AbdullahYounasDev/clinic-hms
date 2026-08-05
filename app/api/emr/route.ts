@@ -84,10 +84,28 @@ export async function POST(req: NextRequest) {
     vitals.bmi = Math.round((vitals.weight / (h * h)) * 10) / 10;
   }
 
-  // Find doctor by user ID
-  const doctor = await Doctor.findOne({ user: session.user.id, status: "active" });
+  // Resolve doctor for the EMR record
+  let doctor = null;
+  const doctorInputId = parsed.data.doctor || (body as any).doctor;
+
+  if (doctorInputId) {
+    doctor = await Doctor.findById(doctorInputId);
+  }
+
+  if (!doctor && parsed.data.appointment) {
+    const { Appointment } = await import("@/models/clinical.model");
+    const appt = await Appointment.findById(parsed.data.appointment).select("doctor").lean();
+    if (appt?.doctor) {
+      doctor = await Doctor.findById(appt.doctor);
+    }
+  }
+
   if (!doctor) {
-    return apiError("Doctor profile not found for this user", 404);
+    doctor = await Doctor.findOne({ user: session.user.id, status: { $ne: "archived" } });
+  }
+
+  if (!doctor) {
+    return apiError("Doctor profile not found for this consultation. Please specify a doctor.", 404);
   }
 
   // Create EMR record
@@ -140,6 +158,21 @@ export async function POST(req: NextRequest) {
     };
 
     prescriptions = await Prescription.create(prescriptionData);
+  }
+
+  // Synchronize linked appointment status to completed
+  if (parsed.data.appointment) {
+    try {
+      const { Appointment } = await import("@/models/clinical.model");
+      const targetApt = await Appointment.findById(parsed.data.appointment);
+      if (targetApt && !["completed", "cancelled", "no_show", "archived"].includes(targetApt.status)) {
+        targetApt.status = "completed";
+        targetApt.completedAt = new Date();
+        await targetApt.save();
+      }
+    } catch {
+      // Silently catch status update error so EMR creation is never blocked
+    }
   }
 
   // Populate the created EMR

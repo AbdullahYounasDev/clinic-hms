@@ -75,8 +75,8 @@ export async function POST(req: NextRequest) {
     return apiError(validation.error || "Selected time slot is unavailable", 409);
   }
 
-  const [sy, sm, sd] = scheduledDate.split("-").map(Number);
-  const targetDateObj = new Date(sy, sm - 1, sd, 12, 0, 0, 0);
+  const { toClinicNoonDate } = await import("@/lib/time-utils");
+  const targetDateObj = toClinicNoonDate(scheduledDate);
 
   let appointment;
   try {

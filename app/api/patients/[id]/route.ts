@@ -7,6 +7,8 @@ import { updatePatientSchema } from "@/lib/validations";
 import { auditLog, hasPermission } from "@/lib/auth/audit";
 import { resolvePatientPortalFields } from "@/lib/patient-portal-fields";
 
+import { normalizeCNIC } from "@/lib/utils/cnic-utils";
+
 interface Params { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -47,24 +49,40 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (!existing) return apiError("Patient not found", 404);
   if (isArchivedPatient(existing.status)) return apiError("Patient not found", 404);
 
-  const resolved = await resolvePatientPortalFields(parsed.data as Record<string, unknown>, id);
+  const updateFields = { ...parsed.data };
+  if (typeof updateFields.cnic === "string") {
+    updateFields.cnic = normalizeCNIC(updateFields.cnic);
+  }
+
+  const resolved = await resolvePatientPortalFields(updateFields as Record<string, unknown>, id);
   if (resolved.error) return apiError(resolved.error, 422);
 
-  const updated = await Patient.findByIdAndUpdate(id, resolved.data, { new: true }).lean();
+  try {
+    const updated = await Patient.findByIdAndUpdate(id, resolved.data, { new: true }).lean();
 
-  await auditLog({
-    userId: session.user.id,
-    action: "update",
-    module: "patients",
-    description: `Updated patient: ${existing.firstName} ${existing.lastName}`,
-    resourceId: id,
-    resourceType: "Patient",
-    previousData: sanitizeForLog(existing as unknown as Record<string, unknown>),
-    newData: sanitizeForLog(parsed.data as Record<string, unknown>),
-    ipAddress: getIpFromHeaders(req.headers),
-  });
+    await auditLog({
+      userId: session.user.id,
+      action: "update",
+      module: "patients",
+      description: `Updated patient: ${existing.firstName} ${existing.lastName}`,
+      resourceId: id,
+      resourceType: "Patient",
+      previousData: sanitizeForLog(existing as unknown as Record<string, unknown>),
+      newData: sanitizeForLog(parsed.data as Record<string, unknown>),
+      ipAddress: getIpFromHeaders(req.headers),
+    });
 
-  return apiSuccess(updated, "Patient updated successfully");
+    return apiSuccess(updated, "Patient updated successfully");
+  } catch (err: unknown) {
+    const mongoError = err as { code?: number; keyPattern?: Record<string, number> };
+    if (mongoError.code === 11000 && mongoError.keyPattern?.cnic) {
+      return apiError("A patient with this CNIC already exists.", 422);
+    }
+    if (mongoError.code === 11000 && mongoError.keyPattern?.email) {
+      return apiError("A patient with this email address already exists.", 422);
+    }
+    throw err;
+  }
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {

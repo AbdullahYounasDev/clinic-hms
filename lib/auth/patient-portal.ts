@@ -34,23 +34,14 @@ export async function validatePatientPortalEmail(
   return null;
 }
 
-export async function findPortalPatientByLogin(login: string) {
-  const trimmed = login.trim();
-  if (!trimmed) return null;
+export async function findPortalPatientByLogin(loginOrEmail: string) {
+  const normalized = loginOrEmail.trim().toLowerCase();
+  if (!normalized || !normalized.includes("@")) return null;
 
   await connectDB();
 
-  if (trimmed.includes("@")) {
-    return Patient.findOne({
-      email: trimmed.toLowerCase(),
-      portalEnabled: true,
-    })
-      .select("+password")
-      .lean();
-  }
-
   return Patient.findOne({
-    phone: trimmed,
+    email: normalized,
     portalEnabled: true,
   })
     .select("+password")

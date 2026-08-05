@@ -89,12 +89,6 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const [prevFilteredMedicines, setPrevFilteredMedicines] = useState(filteredMedicines);
-    if (prevFilteredMedicines !== filteredMedicines) {
-        setPrevFilteredMedicines(filteredMedicines);
-        setHighlightedIndex(-1);
-    }
-
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (!isDropdownOpen) {
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -326,6 +320,7 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
                                         onChange={(e) => {
                                             setSearchTerm(e.target.value);
                                             setIsDropdownOpen(true);
+                                            setHighlightedIndex(-1);
                                             if (e.target.value === "") setSelectedMedicine("");
                                             setMedicineError("");
                                         }}

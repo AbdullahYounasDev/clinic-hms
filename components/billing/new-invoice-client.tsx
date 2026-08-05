@@ -82,6 +82,18 @@ export function NewInvoiceClient() {
   });
 
   const onSubmit = (d: FormValues) => {
+    setError("");
+
+    if (d.invoiceType === "lab" && !d.patient) {
+      setError("A registered patient must be selected for Lab Test invoices");
+      return;
+    }
+
+    if (d.invoiceType === "opd" && (!selectedDoctor || !selectedPatient)) {
+      setError("Please select both a doctor and a patient for OPD invoices");
+      return;
+    }
+
     const validItems = d.items.filter(i => i.description && i.quantity > 0);
     if (validItems.length === 0) {
       setError("Add at least one item with quantity greater than 0");
@@ -130,7 +142,18 @@ export function NewInvoiceClient() {
         <Card>
           <CardBody>
             <FormField label="Invoice Type" required>
-              <Select {...register("invoiceType")}>
+              <Select
+                {...register("invoiceType", {
+                  onChange: () => {
+                    setValue("patient", "");
+                    setValue("patientName", "");
+                    setValue("items", []);
+                    setSelectedDoctor("");
+                    setSelectedPatient("");
+                    setError("");
+                  },
+                })}
+              >
                 <option value="opd">OPD / Consultation</option>
                 <option value="pharmacy_sale">Pharmacy Sale (Patient)</option>
                 <option value="lab">Lab Test</option>
@@ -165,7 +188,7 @@ export function NewInvoiceClient() {
             watchedItems={watchedItems}
             setValue={setValue}
             register={register}
-            patientId={selectedPatient}
+            control={control}
           />
         )}
 

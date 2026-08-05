@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
 
   const filter: Record<string, unknown> = {};
 
-  // Non-admin users only see tests they requested
-  if (!session.user.isSuperAdmin) {
+  // Non-admin users only see tests they requested unless filtering by patient (e.g., for billing)
+  if (!session.user.isSuperAdmin && !patientId) {
     filter.requestedBy = session.user.id;
   }
 
@@ -33,6 +33,9 @@ export async function GET(req: NextRequest) {
     applyLabTestStatusFilter(filter, null);
   }
   if (patientId) filter.patient = patientId;
+  const isPaidParam = sp.get("isPaid");
+  if (isPaidParam === "false") filter.isPaid = false;
+  if (isPaidParam === "true") filter.isPaid = true;
 
   // Search by patient name or ID
   if (search) {
@@ -58,6 +61,29 @@ export async function GET(req: NextRequest) {
       .lean(),
     LabTest.countDocuments(filter),
   ]);
+
+  // Auto-sync isPaid status for unpaid tests if a paid invoice exists
+  const unpaidTests = tests.filter((t: any) => !t.isPaid);
+  if (unpaidTests.length > 0) {
+    const { Invoice } = await import("@/models/operations.model");
+    for (const t of unpaidTests) {
+      const patientId = typeof t.patient === "object" ? (t.patient as any)?._id : t.patient;
+      const matchingInvoice = await Invoice.findOne({
+        $or: [
+          { "items.labOrderId": t._id },
+          ...(t.invoiceId ? [{ _id: t.invoiceId }] : []),
+          ...(patientId ? [{ patient: patientId, invoiceType: "lab" }] : [])
+        ],
+        status: "paid",
+      }).lean();
+
+      if (matchingInvoice) {
+        await LabTest.findByIdAndUpdate(t._id, { isPaid: true, invoiceId: matchingInvoice._id });
+        (t as any).isPaid = true;
+        (t as any).invoiceId = matchingInvoice._id;
+      }
+    }
+  }
 
   return apiSuccess(tests, "Lab tests fetched", 200, buildPagination(total, page, limit));
 }

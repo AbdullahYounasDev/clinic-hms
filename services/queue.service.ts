@@ -74,11 +74,17 @@ export function toQueueDate(input: Date | string): Date {
   return startOfDay(new Date(year, month, day));
 }
 
-export function getDateRange(input?: Date | string): { start: Date; end: Date } {
-  const d = toQueueDate(input || new Date());
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
-  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-  return { start, end };
+import { getClinicDayBounds, getClinicDateString } from "@/lib/time-utils";
+
+export function getDateRange(input?: Date | string, timeZone?: string): { start: Date; end: Date } {
+  let dateStr: string;
+  if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    dateStr = input;
+  } else {
+    const refDate = input instanceof Date ? input : new Date();
+    dateStr = getClinicDateString(refDate, timeZone);
+  }
+  return getClinicDayBounds(dateStr, timeZone);
 }
 
 export function hasQueueToken(queueNumber: unknown): boolean {

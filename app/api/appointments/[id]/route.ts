@@ -41,8 +41,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (parsed.data.status === "checked_in") updateData.checkedInAt = new Date();
   if (parsed.data.status === "completed") updateData.completedAt = new Date();
   if (parsed.data.scheduledDate) {
-    const [sy, sm, sd] = parsed.data.scheduledDate.split("-").map(Number);
-    updateData.scheduledDate = new Date(sy, sm - 1, sd, 12, 0, 0, 0);
+    const { toClinicNoonDate } = await import("@/lib/time-utils");
+    updateData.scheduledDate = toClinicNoonDate(parsed.data.scheduledDate);
   }
 
   await Appointment.findByIdAndUpdate(id, updateData);

@@ -39,6 +39,7 @@ async function getClinicInfo() {
     phone: "+92 300 1234567",
     email: "info@clinichms.com",
     clinicType: "clinic",
+    timezone: "Asia/Karachi",
     workingDays: [
       { day: "Monday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
       { day: "Tuesday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
@@ -51,7 +52,7 @@ async function getClinicInfo() {
   try {
     await connectDB();
     const settings = await Settings.findOne({}).select(
-      "clinicName clinicTagline logo logoPublicId clinicAddress phone email clinicType workingDays closingDays"
+      "clinicName clinicTagline logo logoPublicId clinicAddress phone email clinicType timezone workingDays closingDays"
     ).lean();
     if (!settings) return fallback;
     return {
@@ -63,6 +64,7 @@ async function getClinicInfo() {
       phone: settings.phone || fallback.phone,
       email: settings.email || fallback.email,
       clinicType: settings.clinicType || fallback.clinicType,
+      timezone: settings.timezone || fallback.timezone,
       workingDays: (settings.workingDays && settings.workingDays.length > 0)
         ? settings.workingDays
         : fallback.workingDays,
@@ -120,6 +122,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     phone: rawClinic.phone as string || "",
     email: rawClinic.email as string || "",
     clinicType: rawClinic.clinicType as string || "clinic",
+    timezone: rawClinic.timezone as string || "Asia/Karachi",
     // Strip _id from each subdocument so only plain fields cross the boundary
     workingDays: ((rawClinic.workingDays as Record<string, unknown>[] | undefined) || []).map(
       ({ _id, ...day }) => day

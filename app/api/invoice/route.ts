@@ -98,6 +98,29 @@ export async function POST(req: NextRequest) {
         }
     }
 
+    // --- LAB LOGIC: Link invoiceId and update isPaid for existing lab orders ---
+    if (invoice.invoiceType === "lab" || invoiceData.invoiceType === "lab") {
+        const labOrderIds = invoice.items?.filter((item: any) => item.labOrderId).map((item: any) => item.labOrderId) || [];
+        const { LabTest } = await import("@/models/operations.model");
+        const updatePayload: Record<string, unknown> = { invoiceId: invoice._id };
+
+        if (invoice.status === "paid" || (invoice.paidAmount && invoice.paidAmount >= invoice.total) || invoice.balanceDue <= 0) {
+            updatePayload.isPaid = true;
+        }
+
+        if (labOrderIds.length > 0) {
+            await LabTest.updateMany(
+                { _id: { $in: labOrderIds } },
+                updatePayload
+            );
+        } else if (invoice.patient) {
+            await LabTest.updateMany(
+                { patient: invoice.patient, isPaid: false },
+                updatePayload
+            );
+        }
+    }
+
     const populatedInvoice = await Invoice.findById(invoice._id)
         .populate("patient", "firstName lastName patientId")
         .populate("doctor", "firstName lastName")

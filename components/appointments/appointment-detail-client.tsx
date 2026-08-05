@@ -46,6 +46,8 @@ interface Appointment {
     queueNumber?: number;
 }
 
+import { toClinicDateString } from "@/lib/time-utils";
+
 export function AppointmentDetailClient({ appointmentId }: { appointmentId: string }) {
     const { data: session } = useSession();
     const router = useRouter();
@@ -120,7 +122,7 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
         if (data?.data) {
             const a = data.data;
             reset({
-                scheduledDate: a.scheduledDate?.split("T")[0],
+                scheduledDate: toClinicDateString(a.scheduledDate),
                 scheduledTime: a.scheduledTime,
                 duration: a.duration,
                 type: a.type,

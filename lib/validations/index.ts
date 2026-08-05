@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { isValidIANATimezone } from "@/lib/time-utils";
+import { isValidCNIC } from "@/lib/utils/cnic-utils";
 
 // ─── AUTH SCHEMAS ─────────────────────────────────────────
 export const patientLoginSchema = z.object({
-  login: z.string().min(3, "Email or phone number is required"),
+  email: z.string().email("Valid email address is required"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -84,11 +86,17 @@ export const createPatientSchema = z.object({
       postalCode: z.string().optional(),
     })
     .optional(),
+  cnic: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || isValidCNIC(v), { message: "CNIC must be exactly 13 digits" }),
   emergencyContact: z
     .object({
       name: z.string().optional(),
       relationship: z.string().optional(),
       phone: z.string().optional(),
+      email: z.string().email().optional().or(z.literal("")),
     })
     .optional(),
   bloodGroup: z
@@ -107,7 +115,13 @@ export const createPatientSchema = z.object({
     })
     .optional(),
   /** Staff-assigned portal password; patient must change on first login */
-  portalPassword: z.string().min(8, "Password must be at least 8 characters").optional(),
+  portalPassword: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || v.length >= 8, {
+      message: "Password must be at least 8 characters",
+    }),
 });
 
 export const updatePatientSchema = z.object({
@@ -125,10 +139,16 @@ export const updatePatientSchema = z.object({
     state: z.string().optional(),
     country: z.string().optional(),
   }).optional(),
+  cnic: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || isValidCNIC(v), { message: "CNIC must be exactly 13 digits" }),
   emergencyContact: z.object({
     name: z.string().optional(),
     relationship: z.string().optional(),
     phone: z.string().optional(),
+    email: z.string().email().optional().or(z.literal("")),
   }).optional(),
   allergies: z.array(z.string()).optional(),
   chronicDiseases: z.array(z.string()).optional(),
@@ -143,7 +163,13 @@ export const updatePatientSchema = z.object({
   dateOfDeath: z.string().optional(),
   causeOfDeath: z.string().optional(),
   status: z.enum(["active", "archived", "deceased"]).default("active"),
-  portalPassword: z.string().min(8, "Password must be at least 8 characters").optional(),
+  portalPassword: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || v.length >= 8, {
+      message: "Password must be at least 8 characters",
+    }),
   portalEnabled: z.boolean().optional(),
 }).partial();
 
@@ -210,6 +236,7 @@ export const createEMRSchema = z.object({
   patient: z.string().min(1, "Patient is required"),
   chiefComplaint: z.string().min(1, "Chief complaint is required"),
   appointment: z.string().optional(),
+  doctor: z.string().optional(),
   symptoms: z.array(z.string()).optional(),
   vitals: z.object({
     temperature: z.number().optional(),
@@ -272,41 +299,41 @@ export const createPrescriptionSchema = z.object({
 
 // ─── LAB TEST RESULT SCHEMAS ───────────────────────────────
 const labTestParameterResultSchema = z.object({
-    parameterName: z.string().min(1, "Parameter name is required"),
-    value: z.union([z.string(), z.number(), z.boolean()]),
-    unit: z.string().optional(),
-    referenceRange: z.string().optional(),
-    isAbnormal: z.boolean().optional().default(false),
+  parameterName: z.string().min(1, "Parameter name is required"),
+  value: z.union([z.string(), z.number(), z.boolean()]),
+  unit: z.string().optional(),
+  referenceRange: z.string().optional(),
+  isAbnormal: z.boolean().optional().default(false),
 });
 
 const labTestResultSchema = z.object({
-    catalogId: z.string().min(1, "Catalog ID is required"),
-    testName: z.string().min(1, "Test name is required"),
-    testCode: z.string().optional(),
-    parameterResults: z.array(labTestParameterResultSchema).min(1, "At least one parameter result is required"),
-    notes: z.string().optional(),
+  catalogId: z.string().min(1, "Catalog ID is required"),
+  testName: z.string().min(1, "Test name is required"),
+  testCode: z.string().optional(),
+  parameterResults: z.array(labTestParameterResultSchema).min(1, "At least one parameter result is required"),
+  notes: z.string().optional(),
 });
 
 // ─── LAB TEST SCHEMAS ─────────────────────────────────────
 export const createLabTestSchema = z.object({
-    patient: z.string().min(1, "Patient is required"),
-    appointment: z.string().optional(),
-    tests: z
-        .array(
-            z.object({
-                catalogId: z.string().min(1, "Catalog ID is required"),
-            })
-        )
-        .min(1, "At least one test is required"),
-    priority: z.enum(["routine", "urgent", "stat"]).default("routine"),
-    notes: z.string().optional(),
+  patient: z.string().min(1, "Patient is required"),
+  appointment: z.string().optional(),
+  tests: z
+    .array(
+      z.object({
+        catalogId: z.string().min(1, "Catalog ID is required"),
+      })
+    )
+    .min(1, "At least one test is required"),
+  priority: z.enum(["routine", "urgent", "stat"]).default("routine"),
+  notes: z.string().optional(),
 });
 
 // ✅ new — for submitting/updating results (separate from order creation)
 export const updateLabTestResultsSchema = z.object({
-    results: z.array(labTestResultSchema).min(1, "At least one result is required"),
-    reportUrl: z.string().url().optional(),
-    notes: z.string().optional(),
+  results: z.array(labTestResultSchema).min(1, "At least one result is required"),
+  reportUrl: z.string().url().optional(),
+  notes: z.string().optional(),
 });
 
 // ─── BILLING SCHEMAS ──────────────────────────────────────
@@ -323,6 +350,8 @@ export const createInvoiceSchema = z.object({
     total: z.number().min(0),
     medicine: z.string().optional(),
     batchNumber: z.string().optional(),
+    catalogId: z.string().optional(),
+    labOrderId: z.string().optional(),
   })),
   subtotal: z.number().min(0),
   discount: z.number().min(0).default(0),
@@ -368,35 +397,35 @@ export const updateInvoiceSchema = z.object({
 
 // ─── LAB CATALOG PARAMETER SCHEMA ─────────────────────────
 const labCatalogParameterSchema = z.object({
-    name: z.string().min(1, "Parameter name is required"),
-    unit: z.string().optional(),
-    referenceRange: z.string().optional(),
-    minValue: z.number().optional(),
-    maxValue: z.number().optional(),
-    dataType: z.enum(["number", "text", "boolean"]).default("text"),
+  name: z.string().min(1, "Parameter name is required"),
+  unit: z.string().optional(),
+  referenceRange: z.string().optional(),
+  minValue: z.number().optional(),
+  maxValue: z.number().optional(),
+  dataType: z.enum(["number", "text", "boolean"]).default("text"),
 }).refine(
-    (p) => p.minValue === undefined || p.maxValue === undefined || p.minValue <= p.maxValue,
-    { message: "minValue cannot be greater than maxValue", path: ["minValue"] }
+  (p) => p.minValue === undefined || p.maxValue === undefined || p.minValue <= p.maxValue,
+  { message: "minValue cannot be greater than maxValue", path: ["minValue"] }
 );
 
 export const createLabCatalogSchema = z.object({
-    testName: z.string().min(1, "Test name is required").max(200),
-    testCode: z.string().min(1, "Test code is required").max(20),
-    category: z.string().min(1, "Category is required"),
-    cost: z.number().min(0, "Cost cannot be negative"),
-    turnaroundTime: z.number().min(0).default(24),
-    isActive: z.union([z.boolean(), z.string()]).optional(),
-    parameters: z.array(labCatalogParameterSchema).optional().default([]), // ✅ was z.object({}).catchall
+  testName: z.string().min(1, "Test name is required").max(200),
+  testCode: z.string().min(1, "Test code is required").max(20),
+  category: z.string().min(1, "Category is required"),
+  cost: z.number().min(0, "Cost cannot be negative"),
+  turnaroundTime: z.number().min(0).default(24),
+  isActive: z.union([z.boolean(), z.string()]).optional(),
+  parameters: z.array(labCatalogParameterSchema).optional().default([]), // ✅ was z.object({}).catchall
 });
 
 export const updateLabCatalogSchema = z.object({
-    testName: z.string().min(1).max(200).optional(),
-    testCode: z.string().min(1).max(20).optional(),
-    category: z.string().min(1).optional(),
-    cost: z.number().min(0).optional(),
-    turnaroundTime: z.number().min(0).optional(),
-    isActive: z.union([z.boolean(), z.string()]).optional(),
-    parameters: z.array(labCatalogParameterSchema).optional(), // ✅ no default here — keeps your "changedData" partial-update pattern intact (undefined = not touched)
+  testName: z.string().min(1).max(200).optional(),
+  testCode: z.string().min(1).max(20).optional(),
+  category: z.string().min(1).optional(),
+  cost: z.number().min(0).optional(),
+  turnaroundTime: z.number().min(0).optional(),
+  isActive: z.union([z.boolean(), z.string()]).optional(),
+  parameters: z.array(labCatalogParameterSchema).optional(), // ✅ no default here — keeps your "changedData" partial-update pattern intact (undefined = not touched)
 });
 
 export const addPaymentSchema = z.object({
@@ -523,7 +552,7 @@ export const updateSettingsSchema = z.object({
   registrationNumber: z.string().optional(),
   taxId: z.string().optional(),
   currency: z.string().optional(),
-  timezone: z.string().optional(),
+  timezone: z.string().refine((val) => !val || isValidIANATimezone(val), { message: "Invalid IANA timezone identifier" }).optional(),
   invoicePrefix: z.string().optional(),
   appointmentDuration: z.number().min(5).max(120).optional(),
   workingDays: z.array(workingDaySchema).optional(),

@@ -102,6 +102,24 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     if (!updated) return apiError("Invoice not found", 404);
 
+    // --- LAB LOGIC: Sync LabTest.isPaid when invoice becomes paid or updated ---
+    if (updated && (updated.invoiceType === "lab" || (updated.items && updated.items.some((i: any) => i.category === "lab_test")))) {
+        const labOrderIds = (updated.items || []).map((item: any) => item.labOrderId).filter(Boolean);
+        const { LabTest } = await import("@/models/operations.model");
+
+        const updatePayload: Record<string, unknown> = { invoiceId: updated._id };
+        if (updated.status === "paid" || (updated.balanceDue !== undefined && updated.balanceDue <= 0)) {
+            updatePayload.isPaid = true;
+        }
+
+        if (labOrderIds.length > 0) {
+            await LabTest.updateMany({ _id: { $in: labOrderIds } }, updatePayload);
+        } else if (updated.patient) {
+            const patientObjId = typeof updated.patient === "object" ? (updated.patient as any)._id : updated.patient;
+            await LabTest.updateMany({ patient: patientObjId, isPaid: false }, updatePayload);
+        }
+    }
+
     const changes: string[] = [];
     if (update.items) changes.push("items updated");
     if (update.total) changes.push(`total: ${update.total}`);

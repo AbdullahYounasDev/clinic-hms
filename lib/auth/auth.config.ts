@@ -125,15 +125,16 @@ export const authOptions = {
       id: "patient-credentials",
       name: "Patient Portal",
       credentials: {
-        login: { label: "Email or Phone", type: "text" },
+        email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.login || !credentials?.password) {
-          throw new Error("Email or phone and password are required");
+        const email = (credentials?.email || (credentials as Record<string, string>)?.login || "").trim();
+        if (!email || !credentials?.password) {
+          throw new Error("Email and password are required");
         }
 
-        const patient = await findPortalPatientByLogin(credentials.login);
+        const patient = await findPortalPatientByLogin(email);
 
         if (!patient || !patient.password) {
           throw new Error("No portal account found. Contact the clinic.");

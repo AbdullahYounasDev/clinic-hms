@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import { getNextSequenceValue } from "@/models/counter.model";
 
 function getModel<T extends Document>(name: string, schema: Schema): Model<T> {
   return (mongoose.models[name] as Model<T>) || mongoose.model<T>(name, schema);
@@ -47,10 +48,11 @@ export interface IPatient extends Document {
   lastName: string;
   gender: string;
   dateOfBirth: Date;
+  cnic?: string;
   phone: string;
   email?: string;
   address: typeof AddressSchema;
-  emergencyContact: { name: string; relationship: string; phone: string };
+  emergencyContact: { name: string; relationship: string; phone: string; email?: string };
   bloodGroup?: string;
   allergies: string[];
   chronicDiseases: string[];
@@ -83,6 +85,7 @@ const PatientSchema = new Schema<IPatient>(
     lastName: { type: String, required: true, trim: true },
     gender: { type: String, enum: ["male", "female", "other"], required: true },
     dateOfBirth: { type: Date, required: true },
+    cnic: { type: String, trim: true },
     phone: { type: String, required: true, index: true },
     email: { type: String, lowercase: true, trim: true },
     address: AddressSchema,
@@ -90,6 +93,7 @@ const PatientSchema = new Schema<IPatient>(
       name: { type: String },
       relationship: { type: String },
       phone: { type: String },
+      email: { type: String },
     },
     bloodGroup: { type: String, enum: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", ""] },
     allergies: [{ type: String }],
@@ -130,15 +134,16 @@ PatientSchema.virtual("age").get(function () {
   return age;
 });
 
-PatientSchema.index({ firstName: "text", lastName: "text", phone: "text", patientId: "text" });
+PatientSchema.index({ firstName: "text", lastName: "text", phone: "text", patientId: "text", cnic: "text" });
 PatientSchema.index({ email: 1 }, { unique: true, sparse: true });
+PatientSchema.index({ cnic: 1 }, { unique: true, sparse: true });
 PatientSchema.set("toJSON", { virtuals: true });
 PatientSchema.set("toObject", { virtuals: true });
 
 PatientSchema.pre("save", async function () {
   if (!this.patientId) {
-    const count = await mongoose.models.Patient.countDocuments();
-    this.patientId = `PT-${String(count + 1).padStart(6, "0")}`;
+    const seq = await getNextSequenceValue("patient");
+    this.patientId = `PT-${String(seq).padStart(6, "0")}`;
   }
 });
 

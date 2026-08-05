@@ -36,6 +36,7 @@ export class PatientRepository {
         { phone: { $regex: search, $options: "i" } },
         { patientId: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
+        { cnic: { $regex: search, $options: "i" } },
       ];
     }
 

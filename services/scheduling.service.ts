@@ -128,11 +128,9 @@ export class SchedulingService {
       const endOfDayTarget = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
 
       const activeLeave = doctor.leaves.find((leave) => {
-        const lStart = new Date(leave.startDate);
-        const lEnd = new Date(leave.endDate);
-        const lStartDay = new Date(lStart.getFullYear(), lStart.getMonth(), lStart.getDate(), 0, 0, 0, 0);
-        const lEndDay = new Date(lEnd.getFullYear(), lEnd.getMonth(), lEnd.getDate(), 23, 59, 59, 999);
-        return startOfDayTarget >= lStartDay && endOfDayTarget <= lEndDay;
+        const lStartStr = formatDateYYYYMMDD(new Date(leave.startDate));
+        const lEndStr = formatDateYYYYMMDD(new Date(leave.endDate));
+        return dateStr >= lStartStr && dateStr <= lEndStr;
       });
 
       if (activeLeave) {
@@ -209,13 +207,20 @@ export class SchedulingService {
       }
     }
 
-    // Determine current time for past slot checking (if date is today)
-    const now = new Date();
-    const isToday =
-      now.getFullYear() === targetDate.getFullYear() &&
-      now.getMonth() === targetDate.getMonth() &&
-      now.getDate() === targetDate.getDate();
-    const currentNowMins = now.getHours() * 60 + now.getMinutes();
+    // Determine current time for past slot checking in Clinic Timezone (if date is today)
+    const { resolveClinicTimezone, getClinicDateString } = await import("@/lib/time-utils");
+    const clinicTz = resolveClinicTimezone(settings?.timezone);
+    const todayStr = getClinicDateString(new Date(), clinicTz);
+    const isToday = dateStr === todayStr;
+
+    const nowClinicStr = new Intl.DateTimeFormat("en-US", {
+      timeZone: clinicTz,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date());
+    const [nowH, nowM] = nowClinicStr.split(":").map(Number);
+    const currentNowMins = (nowH % 24) * 60 + (nowM || 0);
 
     // 4. Generate candidate start times with post-appointment alignment
     const candidateTimesSet = new Set<number>();

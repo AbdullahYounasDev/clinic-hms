@@ -40,11 +40,37 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .populate("processedBy", "firstName lastName")
     .populate("approvedBy", "firstName lastName")
     .populate("tests.catalogId", "testName testCode category turnaroundTime")
-    .populate("invoiceId", "invoiceNumber")
+    .populate("invoiceId", "invoiceNumber status paidAmount total balanceDue")
     .lean();
 
   if (!test || test.status === "cancelled" || isInactiveRecord(test)) {
     return apiError("Lab test not found", 404);
+  }
+
+  // Auto-sync isPaid if an invoice exists and is paid
+  if (!test.isPaid) {
+    const { Invoice } = await import("@/models/operations.model");
+    const testPatientId = typeof test.patient === "object" ? (test.patient as any)._id : test.patient;
+    const testInvoiceId = typeof test.invoiceId === "object" ? (test.invoiceId as any)?._id : test.invoiceId;
+
+    const queryOr: any[] = [{ "items.labOrderId": test._id }];
+    if (testInvoiceId) queryOr.push({ _id: testInvoiceId });
+    if (testPatientId) queryOr.push({ patient: testPatientId, invoiceType: "lab" });
+
+    const matchingInvoice = await Invoice.findOne({
+      $or: queryOr,
+      status: "paid",
+    }).lean();
+
+    if (matchingInvoice) {
+      await LabTest.findByIdAndUpdate(id, { isPaid: true, invoiceId: matchingInvoice._id });
+      test.isPaid = true;
+      (test as any).invoiceId = {
+        _id: matchingInvoice._id,
+        invoiceNumber: matchingInvoice.invoiceNumber,
+        status: matchingInvoice.status,
+      };
+    }
   }
 
   return apiSuccess(test, "Lab test fetched", 200);
