@@ -88,23 +88,40 @@ export function MedicineCreateModal({ open, onClose }: MedicineCreateModalProps)
         if (checkingBarcode) return;
         await stopScanner();
 
-        const code = decodedText.trim();
-        setScannedBarcode(code);
+        const rawCode = decodedText.trim();
+        const { parseBarcodeData } = await import("@/lib/utils/barcode-parser");
+        const parsed = parseBarcodeData(rawCode);
+        const lookupBarcode = parsed.barcode || rawCode;
+
+        setScannedBarcode(lookupBarcode);
         setCheckingBarcode(true);
         setScannerError("");
         setExistingMedicine(null);
 
         try {
-            const res = await axios.get("/api/pharmacy/barcode", { params: { barcode: code } });
+            const res = await axios.get("/api/pharmacy/barcode", { params: { barcode: lookupBarcode } });
             const result = res.data?.data;
 
             if (result?.status === "found" && result.medicine) {
                 setExistingMedicine(result.medicine);
             } else {
                 reset();
-                setValue("barcode", code);
+                setValue("barcode", lookupBarcode);
+                if (parsed.name) setValue("name", parsed.name);
+                if (parsed.genericName) setValue("genericName", parsed.genericName);
+                if (parsed.category) setValue("category", parsed.category);
+                if (parsed.batchNumber) setValue("batchNumber", parsed.batchNumber);
+                if (parsed.expiryDate) setValue("expiryDate", parsed.expiryDate);
+                if (parsed.unitCost !== undefined) setValue("unitCost", parsed.unitCost);
+                if (parsed.sellingPrice !== undefined) setValue("sellingPrice", parsed.sellingPrice);
+                if (parsed.unit) setValue("unit", parsed.unit);
+                if (parsed.manufacturer) setValue("manufacturer", parsed.manufacturer);
+                if (parsed.storageCondition) setValue("storageCondition", parsed.storageCondition);
+                if (parsed.storageLocation) setValue("storageLocation", parsed.storageLocation);
+
                 setExistingMedicine(null);
                 setActiveTab("manual");
+                toast.success("Barcode / QR code parsed! Please verify details.");
             }
         } catch {
             toast.error("Could not verify barcode. Please try again or enter manually.");

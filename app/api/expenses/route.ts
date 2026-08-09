@@ -25,12 +25,21 @@ export async function GET(req: NextRequest) {
   const filter: Record<string, unknown> = {};
   if (category) filter.category = category;
   if (status && status !== "archived") filter.status = status;
-  if (!status) filter.status = "approved";
+  if (!status) filter.status = { $ne: "archived" };
   if (search) filter.title = { $regex: search, $options: "i" };
+
   if (from || to) {
+    const { getClinicDayBounds, getClinicTimezone } = await import("@/lib/time-utils");
+    const tz = await getClinicTimezone();
     filter.date = {};
-    if (from) (filter.date as Record<string, unknown>).$gte = new Date(from);
-    if (to) (filter.date as Record<string, unknown>).$lte = new Date(to);
+    if (from) {
+      const bounds = getClinicDayBounds(from, tz);
+      (filter.date as Record<string, unknown>).$gte = bounds.start;
+    }
+    if (to) {
+      const bounds = getClinicDayBounds(to, tz);
+      (filter.date as Record<string, unknown>).$lte = bounds.end;
+    }
   }
 
   const [expenses, total, totals] = await Promise.all([

@@ -76,6 +76,8 @@ export interface IPatient extends Document {
   get fullName(): string;
   dateOfDeath: Date;
   causeOfDeath?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const PatientSchema = new Schema<IPatient>(
@@ -254,8 +256,8 @@ const DoctorSchema = new Schema<IDoctor>(
 
 DoctorSchema.pre("save", async function () {
   if (!this.doctorId) {
-    const count = await mongoose.models.Doctor.countDocuments();
-    this.doctorId = `DR-${String(count + 1).padStart(4, "0")}`;
+    const { getNextDoctorId } = await import("./counter.model");
+    this.doctorId = await getNextDoctorId();
   }
 });
 

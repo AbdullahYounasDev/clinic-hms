@@ -73,7 +73,11 @@ export function PharmacyScannerModal({
       if (checkingBarcode) return;
       await stopScanner();
 
-      const code = decodedText.trim();
+      const rawCode = decodedText.trim();
+      const { parseBarcodeData } = await import("@/lib/utils/barcode-parser");
+      const parsed = parseBarcodeData(rawCode);
+      const code = parsed.barcode || rawCode;
+
       setCheckingBarcode(true);
       setScannerError("");
 
@@ -87,12 +91,12 @@ export function PharmacyScannerModal({
           onScanResult(m.name);
           toast.success(`Found medicine: ${m.name}`);
         } else {
-          onScanResult(code);
+          onScanResult(parsed.name || code);
           toast.info(`Scanned Code: ${code}`);
         }
         await closeScanner();
       } catch {
-        onScanResult(code);
+        onScanResult(parsed.name || code);
         toast.info(`Scanned Code: ${code}`);
         await closeScanner();
       } finally {

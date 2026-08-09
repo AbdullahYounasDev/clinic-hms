@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requirePatientSession } from "@/lib/auth/require-portal";
 import connectDB from "@/lib/db/mongoose";
 import { Appointment, Doctor, Patient } from "@/models/clinical.model";
-import { apiSuccess, apiError, getPaginationParams, buildPagination, applyAppointmentStatusFilter, getIpFromHeaders } from "@/lib/utils";
+import { apiSuccess, apiError, getPaginationParams, buildPagination, applyAppointmentStatusFilter, getIpFromHeaders, formatDate } from "@/lib/utils";
 import { SchedulingService } from "@/services/scheduling.service";
 import { QueueService } from "@/services/queue.service";
 import { NotificationService } from "@/services/notification.service";
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
   const doctorUser = doctorData?.user as Record<string, unknown> | null | undefined;
   if (doctorUser?._id) {
     const patientData = populated?.patient as Record<string, unknown> | null | undefined;
-    const formattedDate = populated?.scheduledDate ? new Date(populated.scheduledDate).toLocaleDateString() : "";
+    const formattedDate = populated?.scheduledDate ? formatDate(populated.scheduledDate) : "";
     await NotificationService.create({
       userId: String(doctorUser._id),
       type: "appointment_reminder",

@@ -108,7 +108,11 @@ export function EditMedicineModal({ open, onClose, medicine, onUpdate, isPending
         if (savingBarcodeRef.current) return;
         await stopScanner();
 
-        const code = decodedText.trim();
+        const rawCode = decodedText.trim();
+        const { parseBarcodeData } = await import("@/lib/utils/barcode-parser");
+        const parsed = parseBarcodeData(rawCode);
+        const code = parsed.barcode || rawCode;
+
         savingBarcodeRef.current = true;
         setSavingBarcode(true);
         setScannerError("");

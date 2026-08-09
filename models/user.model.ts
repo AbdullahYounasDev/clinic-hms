@@ -116,8 +116,8 @@ UserSchema.set("toObject", { virtuals: true });
 // Auto-increment employeeId
 UserSchema.pre("save", async function () {
   if (!this.employeeId) {
-    const count = await mongoose.models.User.countDocuments();
-    this.employeeId = `EMP-${String(count + 1).padStart(5, "0")}`;
+    const { getNextEmployeeId } = await import("./counter.model");
+    this.employeeId = await getNextEmployeeId();
   }
 });
 

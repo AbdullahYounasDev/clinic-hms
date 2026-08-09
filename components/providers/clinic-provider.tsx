@@ -4,6 +4,14 @@ import React, { createContext, useContext, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 
+import {
+  formatClinicDate,
+  formatClinicTime,
+  formatClinicDateTime,
+  DateFormatPattern,
+  TimeFormatPattern,
+} from "@/lib/time-utils";
+
 export interface WorkingDay {
   day: string;
   openingTime: string;
@@ -29,6 +37,8 @@ export interface ClinicSettings {
   phone: string;
   email: string;
   timezone?: string;
+  dateFormat?: DateFormatPattern;
+  timeFormat?: TimeFormatPattern;
   workingDays: WorkingDay[];
   closingDays: ClosingDay[];
 }
@@ -43,6 +53,8 @@ const DEFAULT_SETTINGS: ClinicSettings = {
   phone: "+92 300 1234567",
   email: "info@clinichms.com",
   timezone: "Asia/Karachi",
+  dateFormat: "DD/MM/YYYY",
+  timeFormat: "12-hour",
   workingDays: [
     { day: "Monday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
     { day: "Tuesday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
@@ -64,6 +76,11 @@ interface ClinicContextValue {
   phone: string;
   email: string;
   timezone: string;
+  dateFormat: DateFormatPattern;
+  timeFormat: TimeFormatPattern;
+  formatDate: (date: Date | string | null | undefined) => string;
+  formatTime: (time: Date | string | null | undefined) => string;
+  formatDateTime: (date: Date | string | null | undefined) => string;
   workingDays: WorkingDay[];
   closingDays: ClosingDay[];
 }
@@ -79,6 +96,11 @@ const ClinicContext = createContext<ClinicContextValue>({
   phone: DEFAULT_SETTINGS.phone,
   email: DEFAULT_SETTINGS.email,
   timezone: DEFAULT_SETTINGS.timezone || "Asia/Karachi",
+  dateFormat: DEFAULT_SETTINGS.dateFormat || "DD/MM/YYYY",
+  timeFormat: DEFAULT_SETTINGS.timeFormat || "12-hour",
+  formatDate: (date) => formatClinicDate(date, "DD/MM/YYYY", "Asia/Karachi"),
+  formatTime: (time) => formatClinicTime(time, "12-hour", "Asia/Karachi"),
+  formatDateTime: (date) => formatClinicDateTime(date, "DD/MM/YYYY", "12-hour", "Asia/Karachi"),
   workingDays: DEFAULT_SETTINGS.workingDays,
   closingDays: DEFAULT_SETTINGS.closingDays,
 });
@@ -135,6 +157,7 @@ export function ClinicProvider({
 
   React.useEffect(() => {
     if (data && typeof window !== "undefined") {
+      (window as any).__CLINIC_SETTINGS__ = data;
       try {
         localStorage.setItem("clinic_hms_settings", JSON.stringify(data));
       } catch {}
@@ -143,6 +166,14 @@ export function ClinicProvider({
 
   const value = useMemo(() => {
     const s = data || initialSettings || DEFAULT_SETTINGS;
+    const tz = s.timezone || DEFAULT_SETTINGS.timezone || "Asia/Karachi";
+    const dFormat: DateFormatPattern = s.dateFormat || DEFAULT_SETTINGS.dateFormat || "DD/MM/YYYY";
+    const tFormat: TimeFormatPattern = s.timeFormat || DEFAULT_SETTINGS.timeFormat || "12-hour";
+
+    if (typeof window !== "undefined") {
+      (window as any).__CLINIC_SETTINGS__ = s;
+    }
+
     return {
       settings: s,
       isLoading,
@@ -153,7 +184,12 @@ export function ClinicProvider({
       clinicAddress: s.clinicAddress || DEFAULT_SETTINGS.clinicAddress,
       phone: s.phone || DEFAULT_SETTINGS.phone,
       email: s.email || DEFAULT_SETTINGS.email,
-      timezone: s.timezone || DEFAULT_SETTINGS.timezone || "Asia/Karachi",
+      timezone: tz,
+      dateFormat: dFormat,
+      timeFormat: tFormat,
+      formatDate: (date: Date | string | null | undefined) => formatClinicDate(date, dFormat, tz),
+      formatTime: (time: Date | string | null | undefined) => formatClinicTime(time, tFormat, tz),
+      formatDateTime: (date: Date | string | null | undefined) => formatClinicDateTime(date, dFormat, tFormat, tz),
       workingDays: s.workingDays && s.workingDays.length > 0 ? s.workingDays : DEFAULT_SETTINGS.workingDays,
       closingDays: s.closingDays || [],
     };

@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Modal, FormField, Input, Select, Button, Alert } from "@/components/ui";
 import { updateExpenseSchema, UpdateExpenseInput } from "@/lib/validations";
 import { X, Image as ImageIcon, Download, Eye } from "lucide-react";
+import { toClinicDateString } from "@/lib/time-utils";
 
 interface ExpenseDetail {
     _id: string;
@@ -54,7 +55,7 @@ export function EditExpenseModal({ open, onClose, expense, onUpdate, isPending, 
                 amount: expense.amount,
                 paymentMethod: expense.paymentMethod as any,
                 vendor: expense.vendor || "",
-                date: expense.date ? new Date(expense.date).toISOString().split("T")[0] : "",
+                date: expense.date ? toClinicDateString(expense.date) : "",
                 description: expense.description || "",
                 status: expense.status as any,
             });

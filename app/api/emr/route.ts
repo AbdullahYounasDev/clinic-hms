@@ -16,12 +16,30 @@ export async function GET(req: NextRequest) {
   await connectDB();
   const sp = req.nextUrl.searchParams;
   const { page, limit, skip } = getPaginationParams(sp);
+  const search = sp.get("search") || "";
   const patient = sp.get("patient") || "";
   const doctorId = sp.get("doctor") || "";
   const fromDate = sp.get("fromDate") || "";
   const toDate = sp.get("toDate") || "";
 
   const filter: Record<string, unknown> = { status: { $ne: "archived" } };
+
+  // Search by patient first name, last name, or patient ID
+  if (search) {
+    const { Patient } = await import("@/models/clinical.model");
+    const matchingPatientIds = await Patient.find({
+      status: { $ne: "archived" },
+      $or: [
+        { firstName: { $regex: search, $options: "i" } },
+        { lastName: { $regex: search, $options: "i" } },
+        { patientId: { $regex: search, $options: "i" } },
+      ],
+    }).distinct("_id");
+
+    filter.patient = { $in: matchingPatientIds };
+  } else if (patient) {
+    filter.patient = patient;
+  }
 
   // Doctor scope: only show their own EMR records
   if (!session.user.isSuperAdmin) {
@@ -37,12 +55,17 @@ export async function GET(req: NextRequest) {
     filter.doctor = doctorId;
   }
 
-  if (patient) filter.patient = patient;
-
   if (fromDate || toDate) {
+    const { getClinicTimezone, getClinicDayBounds } = await import("@/lib/time-utils");
+    const clinicTz = await getClinicTimezone();
     const visitDateFilter: Record<string, Date> = {};
-    if (fromDate) visitDateFilter.$gte = new Date(fromDate);
-    if (toDate) visitDateFilter.$lte = new Date(toDate);
+
+    if (fromDate) {
+      visitDateFilter.$gte = getClinicDayBounds(fromDate, clinicTz).start;
+    }
+    if (toDate) {
+      visitDateFilter.$lte = getClinicDayBounds(toDate, clinicTz).end;
+    }
     filter.visitDate = visitDateFilter;
   }
 

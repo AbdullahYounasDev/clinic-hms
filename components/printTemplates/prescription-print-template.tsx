@@ -1,6 +1,6 @@
-// No hardcoded constants — all clinic data must come from the caller via clinicDetails prop
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 import { EMR_PRINT_PDF_TEMPLATE_COLORS } from "@/constants/ClinicDetails";
+import { formatDate as globalFormatDate } from "@/lib/utils";
 
 const COLORS = EMR_PRINT_PDF_TEMPLATE_COLORS || {
   primary: "#0d9488",
@@ -13,7 +13,7 @@ const COLORS = EMR_PRINT_PDF_TEMPLATE_COLORS || {
 
 function formatDate(dateStr?: string): string {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  return globalFormatDate(dateStr);
 }
 
 const pdfStyles = StyleSheet.create({
@@ -54,6 +54,9 @@ export interface PrintClinicDetails {
   phone?: string;
   email?: string;
   logoUrl?: string;
+  timezone?: string;
+  dateFormat?: any;
+  timeFormat?: any;
 }
 
 function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {

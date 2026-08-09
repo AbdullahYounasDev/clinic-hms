@@ -54,8 +54,27 @@ async function getSessionToken(req: NextRequest) {
 }
 
 function redirectToLogin(req: NextRequest, pathname: string, error?: string) {
-  const isPatientPath = pathname.startsWith("/portal") || pathname.startsWith("/patient");
-  const loginUrl = new URL(isPatientPath ? "/patient/login" : "/login", req.url);
+  const isStaffPath =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/patients") ||
+    pathname.startsWith("/appointments") ||
+    pathname.startsWith("/doctors") ||
+    pathname.startsWith("/billing") ||
+    pathname.startsWith("/lab") ||
+    pathname.startsWith("/pharmacy") ||
+    pathname.startsWith("/staff") ||
+    pathname.startsWith("/reports") ||
+    pathname.startsWith("/users") ||
+    pathname.startsWith("/roles") ||
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/expenses") ||
+    pathname.startsWith("/opd") ||
+    pathname.startsWith("/inventory") ||
+    pathname.startsWith("/supplier") ||
+    pathname.startsWith("/audit-logs") ||
+    pathname === "/login";
+
+  const loginUrl = new URL(isStaffPath ? "/login" : "/patient/login", req.url);
   loginUrl.searchParams.set("callbackUrl", pathname);
   if (error) loginUrl.searchParams.set("error", error);
   return NextResponse.redirect(loginUrl);
@@ -175,7 +194,7 @@ export async function proxy(req: NextRequest) {
       "/expenses": "expenses:view",
       "/opd": "emr:view",
       "/settings": "settings:view",
-      "/ai-assistant": "reports:view",
+      "/ai-assistant": "ai_assistant:view",
     };
 
     for (const [route, perm] of Object.entries(ROUTE_PERMISSIONS)) {
@@ -209,6 +228,7 @@ export async function proxy(req: NextRequest) {
         "/api/opd": "emr:view",
         "/api/prescriptions": "prescriptions:view",
         "/api/settings": "settings:view",
+        "/api/ai": "ai_assistant:view",
         "/api/notifications": "",
       };
 

@@ -2,8 +2,8 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import connectDB from "@/lib/db/mongoose";
-import { Invoice } from "@/models/operations.model";
-import { Expense } from "@/models/operations.model";
+import { Invoice, Expense } from "@/models/operations.model";
+import { Patient, Appointment } from "@/models/clinical.model";
 import { apiSuccess, apiError } from "@/lib/utils";
 import { hasPermission } from "@/lib/auth/audit";
 
@@ -13,11 +13,13 @@ export async function GET(req: NextRequest) {
   if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "reports", "view")) return apiError("Forbidden", 403);
 
   await connectDB();
+  const { getClinicTimezone, getClinicDayBounds, getClinicDateString } = await import("@/lib/time-utils");
+  const tz = await getClinicTimezone();
+
   const sp = req.nextUrl.searchParams;
   const type = sp.get("type") || "summary";
   const period = sp.get("period") || "monthly";
 
-  // Fix: Create dates in local timezone to avoid UTC shift
   const fromStr = sp.get("from");
   const toStr = sp.get("to");
 
@@ -25,18 +27,18 @@ export async function GET(req: NextRequest) {
   let to: Date;
 
   if (fromStr) {
-    const [y, m, d] = fromStr.split("-").map(Number);
-    from = new Date(y, m - 1, d, 0, 0, 0, 0);
+    from = getClinicDayBounds(fromStr, tz).start;
   } else {
-    from = new Date(new Date().getFullYear(), new Date().getMonth(), 1, 0, 0, 0, 0);
+    const todayStr = getClinicDateString(new Date(), tz);
+    const [y, m] = todayStr.split("-");
+    from = getClinicDayBounds(`${y}-${m}-01`, tz).start;
   }
 
   if (toStr) {
-    const [y, m, d] = toStr.split("-").map(Number);
-    to = new Date(y, m - 1, d, 23, 59, 59, 999);
+    to = getClinicDayBounds(toStr, tz).end;
   } else {
-    to = new Date();
-    to.setHours(23, 59, 59, 999);
+    const todayStr = getClinicDateString(new Date(), tz);
+    to = getClinicDayBounds(todayStr, tz).end;
   }
 
   // Helper to format display label
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest) {
       },
       {
         $group: {
-          _id: { $dateToString: { format, date: "$createdAt" } },
+          _id: { $dateToString: { format, date: "$createdAt", timezone: tz } },
           revenue: { $sum: "$paidAmount" },
           count: { $sum: 1 },
           avgTicket: { $avg: "$paidAmount" },
@@ -111,7 +113,7 @@ export async function GET(req: NextRequest) {
       },
       {
         $group: {
-          _id: { $dateToString: { format, date: "$date" } },
+          _id: { $dateToString: { format, date: "$date", timezone: tz } },
           total: { $sum: "$amount" },
           count: { $sum: 1 },
         },
@@ -162,7 +164,7 @@ export async function GET(req: NextRequest) {
         },
         {
           $group: {
-            _id: { $dateToString: { format, date: "$createdAt" } },
+            _id: { $dateToString: { format, date: "$createdAt", timezone: tz } },
             revenue: { $sum: "$paidAmount" },
           },
         },
@@ -176,7 +178,7 @@ export async function GET(req: NextRequest) {
         },
         {
           $group: {
-            _id: { $dateToString: { format, date: "$date" } },
+            _id: { $dateToString: { format, date: "$date", timezone: tz } },
             expenses: { $sum: "$amount" },
           },
         },
@@ -527,6 +529,97 @@ export async function GET(req: NextRequest) {
     ]);
 
     return apiSuccess(data);
+  }
+
+  // ============================================================
+  // 9. PATIENTS REPORT SUMMARY
+  // ============================================================
+  if (type === "patients-report") {
+    const format = period === "daily" ? "%Y-%m-%d" : "%Y-%m-%d";
+    const [totalCount, genderCounts, trend, recentPatients] = await Promise.all([
+      Patient.countDocuments({ createdAt: { $gte: from, $lte: to } }),
+      Patient.aggregate([
+        { $match: { createdAt: { $gte: from, $lte: to } } },
+        { $group: { _id: "$gender", count: { $sum: 1 } } },
+      ]),
+      Patient.aggregate([
+        { $match: { createdAt: { $gte: from, $lte: to } } },
+        { $group: { _id: { $dateToString: { format, date: "$createdAt", timezone: tz } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+      Patient.find({ createdAt: { $gte: from, $lte: to } })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .select("patientId firstName lastName gender phone bloodGroup status createdAt")
+        .lean(),
+    ]);
+
+    return apiSuccess({
+      totalCount,
+      genderCounts,
+      trend,
+      recentPatients,
+    });
+  }
+
+  // ============================================================
+  // 10. APPOINTMENTS REPORT SUMMARY
+  // ============================================================
+  if (type === "appointments-report") {
+    const [totalCount, statusCounts, typeCounts, recentAppointments] = await Promise.all([
+      Appointment.countDocuments({ scheduledDate: { $gte: from, $lte: to }, status: { $ne: "archived" } }),
+      Appointment.aggregate([
+        { $match: { scheduledDate: { $gte: from, $lte: to }, status: { $ne: "archived" } } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+      Appointment.aggregate([
+        { $match: { scheduledDate: { $gte: from, $lte: to }, status: { $ne: "archived" } } },
+        { $group: { _id: "$type", count: { $sum: 1 } } },
+      ]),
+      Appointment.find({ scheduledDate: { $gte: from, $lte: to }, status: { $ne: "archived" } })
+        .sort({ scheduledDate: -1 })
+        .limit(20)
+        .populate("patient", "firstName lastName patientId")
+        .populate({ path: "doctor", populate: { path: "user", select: "firstName lastName" } })
+        .lean(),
+    ]);
+
+    return apiSuccess({
+      totalCount,
+      statusCounts,
+      typeCounts,
+      recentAppointments,
+    });
+  }
+
+  // ============================================================
+  // 11. EXPENSES REPORT SUMMARY
+  // ============================================================
+  if (type === "expenses-report") {
+    const [totalStats, categoryStats, recentExpenses] = await Promise.all([
+      Expense.aggregate([
+        { $match: { date: { $gte: from, $lte: to }, status: "approved" } },
+        { $group: { _id: null, totalAmount: { $sum: "$amount" }, count: { $sum: 1 }, avgAmount: { $avg: "$amount" } } },
+      ]),
+      Expense.aggregate([
+        { $match: { date: { $gte: from, $lte: to }, status: "approved" } },
+        { $group: { _id: "$category", total: { $sum: "$amount" }, count: { $sum: 1 } } },
+        { $sort: { total: -1 } },
+      ]),
+      Expense.find({ date: { $gte: from, $lte: to }, status: "approved" })
+        .sort({ date: -1 })
+        .limit(20)
+        .populate("createdBy", "firstName lastName")
+        .lean(),
+    ]);
+
+    return apiSuccess({
+      totalAmount: totalStats[0]?.totalAmount || 0,
+      count: totalStats[0]?.count || 0,
+      avgAmount: totalStats[0]?.avgAmount || 0,
+      categoryStats,
+      recentExpenses,
+    });
   }
 
   return apiError("Invalid report type", 400);

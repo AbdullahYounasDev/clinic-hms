@@ -4,6 +4,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --nyron-product-accent: #0d9488;
+  --nyron-product-accent-hover: #0f766e;
+  --nyron-font-sora: var(--font-sora);
 }
 
 * {
@@ -13,7 +16,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-poppins), sans-serif !important;
+  font-family: var(--font-sora), system-ui, sans-serif !important;
 }
 
 /* Scrollbar styling */

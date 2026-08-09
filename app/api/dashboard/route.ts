@@ -15,12 +15,20 @@ export async function GET(_req: NextRequest) {
   if (!session) return apiError("Unauthorized", 401);
 
   await connectDB();
+  const { getClinicTimezone, getClinicDayBounds, getClinicDateString, toClinicDateString } = await import("@/lib/time-utils");
+  const tz = await getClinicTimezone();
 
   const now = new Date();
-  const todayStart = startOfDay(now);
-  const todayEnd = endOfDay(now);
-  const monthStart = startOfMonth(now);
-  const monthEnd = endOfMonth(now);
+  const todayStr = getClinicDateString(now, tz);
+  const { start: todayStart, end: todayEnd } = getClinicDayBounds(todayStr, tz);
+
+  const [y, m] = todayStr.split("-");
+  const monthStart = getClinicDayBounds(`${y}-${m}-01`, tz).start;
+  const monthEnd = todayEnd;
+
+  const chartStartDate = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+  const chartStartStr = getClinicDateString(chartStartDate, tz);
+  const chartStart = getClinicDayBounds(chartStartStr, tz).start;
 
   const isSuperAdmin = session.user.isSuperAdmin;
   const perms = session.user.permissions || [];
@@ -32,9 +40,6 @@ export async function GET(_req: NextRequest) {
     const doctor = await DoctorModel.findOne({ user: session.user.id }).lean();
     if (doctor) doctorFilter = { doctor: doctor._id };
   }
-
-  // Chart window: last 7 days (including today)
-  const chartStart = startOfDay(new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000));
 
   const [
     totalPatients,
@@ -92,7 +97,7 @@ export async function GET(_req: NextRequest) {
       ])
       : Promise.resolve([]),
 
-    // Monthly revenue — now based on actual payment dates, not invoice creation date
+    // Monthly revenue — based on actual payment dates
     perms.includes("billing:view") || isSuperAdmin
       ? Invoice.aggregate([
         { $unwind: "$payments" },
@@ -109,7 +114,7 @@ export async function GET(_req: NextRequest) {
       ? User.countDocuments({ status: "active" })
       : Promise.resolve(null),
 
-    // Daily revenue for the chart — single aggregation instead of a 7x sequential loop
+    // Daily revenue for the chart with clinic timezone
     perms.includes("billing:view") || isSuperAdmin
       ? Invoice.aggregate([
         { $unwind: "$payments" },
@@ -120,7 +125,7 @@ export async function GET(_req: NextRequest) {
         },
         {
           $group: {
-            _id: { $dateToString: { format: "%Y-%m-%d", date: "$payments.paidAt" } },
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$payments.paidAt", timezone: tz } },
             revenue: { $sum: "$payments.amount" },
           },
         },
@@ -149,14 +154,13 @@ export async function GET(_req: NextRequest) {
   // Revenue chart — last 7 days
   const revenueChart = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateKey = d.toISOString().split("T")[0];
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const dateKey = toClinicDateString(d, tz);
 
     revenueChart.push({
       date: dateKey,
       revenue: revenueByDate[dateKey] || 0,
-      expenses: 0, // Can be populated from Expense model
+      expenses: 0,
     });
   }
 

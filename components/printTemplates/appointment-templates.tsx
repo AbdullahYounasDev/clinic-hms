@@ -21,9 +21,12 @@ const SPACING = {
   sectionMarginBottom: 14,
 };
 
+import { formatDate as globalFormatDate } from "@/lib/utils";
+import { formatClinicTime } from "@/lib/time-utils";
+
 function formatDate(dateStr?: string): string {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  return globalFormatDate(dateStr);
 }
 
 // ─── PDF Styles ───────────────────────────────────────────
@@ -55,6 +58,9 @@ export interface PrintClinicDetails {
   phone?: string;
   email?: string;
   logoUrl?: string;
+  timezone?: string;
+  dateFormat?: any;
+  timeFormat?: any;
 }
 
 function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {
@@ -128,7 +134,7 @@ export function AppointmentPdfTemplate({ appointment, logoUrl, clinicDetails }: 
             <View style={{ flex: 1 }}>
               <Text style={pdfStyles.sectionLabel}>Date & Time</Text>
               <Text style={pdfStyles.value}>{formatDate(a.scheduledDate)}</Text>
-              <Text style={pdfStyles.subValue}>{a.scheduledTime} ({a.duration} min)</Text>
+              <Text style={pdfStyles.subValue}>{formatClinicTime(a.scheduledTime, clinicDetails?.timeFormat, clinicDetails?.timezone)} ({a.duration} min)</Text>
             </View>
             <View style={{ flex: 1, alignItems: "flex-end" }}>
               <Text style={pdfStyles.sectionLabel}>Type</Text>
@@ -206,7 +212,7 @@ export function generateAppointmentPrintHtml(appointment: any, logoUrl?: string,
     <div style="text-align:right;"><div class="label">Doctor</div><div class="value">Dr. ${a.doctor?.user?.firstName} ${a.doctor?.user?.lastName}</div><div class="sub">${a.doctor?.doctorId}</div></div>
   </div>
   <div class="section">
-    <div><div class="label">Date & Time</div><div class="value">${formatDate(a.scheduledDate)}</div><div class="sub">${a.scheduledTime} (${a.duration} min)</div></div>
+    <div><div class="label">Date & Time</div><div class="value">${formatDate(a.scheduledDate)}</div><div class="sub">${formatClinicTime(a.scheduledTime, clinicDetails?.timeFormat, clinicDetails?.timezone)} (${a.duration} min)</div></div>
     <div style="text-align:right;"><div class="label">Type</div><div class="value">${a.type?.replace(/_/g, " ")}</div>${a.department ? `<div class="sub">${a.department.name}</div>` : ''}</div>
   </div>
   ${a.chiefComplaint ? `<div class="section"><div class="label">Chief Complaint</div><div style="font-size:10px;color:#333;">${a.chiefComplaint}</div></div>` : ''}

@@ -48,6 +48,19 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const invoice = await Invoice.findById(id);
   if (!invoice) return apiError("Invoice not found", 404);
   if (invoice.status === "paid") return apiError("Cannot delete a paid invoice", 400);
+
+  // RESTORE STOCK FOR MEDICINE ITEMS BEFORE CANCELLING
+  if (invoice.items && invoice.items.length > 0) {
+    const { Medicine } = await import("@/models/operations.model");
+    for (const item of invoice.items) {
+      if (item.medicine && item.category === "medicine") {
+        await Medicine.findByIdAndUpdate(item.medicine, {
+          $inc: { currentStock: item.quantity },
+        });
+      }
+    }
+  }
+
   await Invoice.findByIdAndUpdate(id, { status: "cancelled" });
   await auditLog({ userId: session.user.id, action: "delete", module: "billing", description: `Cancelled invoice ${invoice.invoiceNumber}`, resourceId: id, ipAddress: getIpFromHeaders(req.headers) });
   return apiSuccess(null, "Invoice cancelled");

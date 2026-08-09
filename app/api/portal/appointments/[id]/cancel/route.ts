@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const authResult = await requirePatientSession();
   if (authResult.error) return authResult.error;
 
-  const { id } = await params;
+  return apiError("Online appointment cancellation is currently disabled. Please contact clinic reception.", 403);
   if (!id) return apiError("Appointment ID is required", 400);
 
   const body = await req.json().catch(() => ({}));

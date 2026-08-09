@@ -8,13 +8,14 @@ import {
   Card, CardBody, Button, FormField, Input, Select, Alert, Badge, Modal,
 } from "@/components/ui";
 import {
-  Plus, Trash2, Upload, Building2, Clock, CalendarOff, Settings
+  Plus, Trash2, Upload, Building2, Clock, CalendarOff, Settings, Edit2
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn, formatTime12Hour, timeToMinutes } from "@/lib/utils";
 import { toast } from "sonner";
 import { useClinicSettings, WorkingDay, ClosingDay } from "@/components/providers/clinic-provider";
 import { TimezonePicker } from "@/components/settings/timezone-picker";
+import { formatClinicDate, formatClinicTime, formatClinicDateTime } from "@/lib/time-utils";
 
 const TABS = [
   { id: "clinic", label: "Clinic Information", icon: Building2 },
@@ -50,6 +51,7 @@ export function SettingsClient() {
 
   // Departments state
   const [newDept, setNewDept] = useState({ name: "", code: "", description: "" });
+  const [editDept, setEditDept] = useState<{ id: string; name: string; code: string; description: string } | null>(null);
   const [deptError, setDeptError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
@@ -100,6 +102,8 @@ export function SettingsClient() {
     logoPublicId: string;
     clinicType: string;
     timezone: string;
+    dateFormat: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY/MM/DD";
+    timeFormat: "12-hour" | "24-hour";
   }>();
 
   useEffect(() => {
@@ -114,6 +118,8 @@ export function SettingsClient() {
         logoPublicId: settings.logoPublicId || "",
         clinicType: settings.clinicType || "clinic",
         timezone: settings.timezone || "Asia/Karachi",
+        dateFormat: settings.dateFormat || "DD/MM/YYYY",
+        timeFormat: settings.timeFormat || "12-hour",
       });
     }
   }, [settings, reset]);
@@ -123,7 +129,16 @@ export function SettingsClient() {
 
   const saveMutation = useMutation({
     mutationFn: (d: Record<string, unknown>) => axios.put("/api/settings", d),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      if (typeof window !== "undefined") {
+        (window as any).__CLINIC_SETTINGS__ = {
+          ...((window as any).__CLINIC_SETTINGS__ || {}),
+          ...variables,
+        };
+        try {
+          localStorage.setItem("clinic_hms_settings", JSON.stringify((window as any).__CLINIC_SETTINGS__));
+        } catch {}
+      }
       qc.invalidateQueries({ queryKey: ["settings"] });
       qc.invalidateQueries({ queryKey: ["public-settings"] });
       refetchSettings();
@@ -149,6 +164,20 @@ export function SettingsClient() {
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed";
       setDeptError(msg);
+      toast.error(msg);
+    },
+  });
+
+  const updateDeptMutation = useMutation({
+    mutationFn: (d: { id: string; name: string; code: string; description?: string }) =>
+      axios.put(`/api/settings/departments/${d.id}`, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["departments"] });
+      setEditDept(null);
+      toast.success("Department updated!");
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to update department";
       toast.error(msg);
     },
   });
@@ -478,13 +507,61 @@ export function SettingsClient() {
                   </FormField>
                 </div>
 
-                <FormField label="Clinic Timezone" hint="Authoritative timezone used for business calendar, queue boundaries, and reports">
-                  <TimezonePicker
-                    value={watch("timezone")}
-                    onChange={(val) => setValue("timezone", val, { shouldDirty: true, shouldValidate: true })}
-                    disabled={!canEdit}
-                  />
-                </FormField>
+                <div className="pt-4 border-t border-gray-200 space-y-4">
+                  <h3 className="text-xs font-semibold text-gray-900 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-teal-600" /> Regional & Date/Time Preferences
+                  </h3>
+
+                  <FormField label="Clinic Timezone" hint="Authoritative timezone used for business calendar, queue boundaries, and reports">
+                    <TimezonePicker
+                      value={watch("timezone")}
+                      onChange={(val) => setValue("timezone", val, { shouldDirty: true, shouldValidate: true })}
+                      disabled={!canEdit}
+                    />
+                  </FormField>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField label="Date Format" hint="Default display format for all dates across staff and patient portals">
+                      <Select {...register("dateFormat")} disabled={!canEdit}>
+                        <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                        <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                        <option value="YYYY/MM/DD">YYYY/MM/DD</option>
+                      </Select>
+                    </FormField>
+
+                    <FormField label="Time Format" hint="Default display format for operating hours, timestamps, and slots">
+                      <Select {...register("timeFormat")} disabled={!canEdit}>
+                        <option value="12-hour">12-hour</option>
+                        <option value="24-hour">24-hour</option>
+                      </Select>
+                    </FormField>
+                  </div>
+
+                  {/* Live Regional Formatting Preview Card */}
+                  <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 space-y-1.5 text-xs">
+                    <span className="font-semibold text-teal-800 block">Live Format Preview</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-teal-900">
+                      <div>
+                        <span className="text-teal-600 block text-[11px]">Date</span>
+                        <span className="font-mono font-medium">
+                          {formatClinicDate(new Date(), watch("dateFormat") || "DD/MM/YYYY", watch("timezone"))}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-teal-600 block text-[11px]">Time</span>
+                        <span className="font-mono font-medium">
+                          {formatClinicTime(new Date(), watch("timeFormat") || "12-hour", watch("timezone"))}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-teal-600 block text-[11px]">Date & Time</span>
+                        <span className="font-mono font-medium">
+                          {formatClinicDateTime(new Date(), watch("dateFormat") || "DD/MM/YYYY", watch("timeFormat") || "12-hour", watch("timezone"))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {canEdit && (
                   <div className="flex justify-end pt-3 border-t border-gray-200">
@@ -540,10 +617,10 @@ export function SettingsClient() {
                       {workingDays.map((d) => (
                         <tr key={d.day} className="hover:bg-gray-50/80 transition-colors">
                           <td className="px-4 py-3 font-semibold text-gray-900">{d.day}</td>
-                          <td className="px-4 py-3 text-teal-700 font-medium">{formatTime12Hour(d.openingTime)}</td>
-                          <td className="px-4 py-3 text-gray-600">{d.breakStart ? formatTime12Hour(d.breakStart) : "—"}</td>
-                          <td className="px-4 py-3 text-gray-600">{d.breakEnd ? formatTime12Hour(d.breakEnd) : "—"}</td>
-                          <td className="px-4 py-3 text-teal-700 font-medium">{formatTime12Hour(d.closingTime)}</td>
+                          <td className="px-4 py-3 text-teal-700 font-medium">{formatClinicTime(d.openingTime, watch("timeFormat") || "12-hour", watch("timezone"))}</td>
+                          <td className="px-4 py-3 text-gray-600">{d.breakStart ? formatClinicTime(d.breakStart, watch("timeFormat") || "12-hour", watch("timezone")) : "—"}</td>
+                          <td className="px-4 py-3 text-gray-600">{d.breakEnd ? formatClinicTime(d.breakEnd, watch("timeFormat") || "12-hour", watch("timezone")) : "—"}</td>
+                          <td className="px-4 py-3 text-teal-700 font-medium">{formatClinicTime(d.closingTime, watch("timeFormat") || "12-hour", watch("timezone"))}</td>
                           {canEdit && (
                             <td className="px-4 py-3 text-right">
                               <Button
@@ -568,10 +645,10 @@ export function SettingsClient() {
                       <div className="space-y-1">
                         <div className="text-xs font-semibold text-gray-900">{d.day}</div>
                         <div className="text-xs text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <span className="text-teal-700 font-medium">{formatTime12Hour(d.openingTime)} - {formatTime12Hour(d.closingTime)}</span>
+                          <span className="text-teal-700 font-medium">{formatClinicTime(d.openingTime, watch("timeFormat") || "12-hour", watch("timezone"))} - {formatClinicTime(d.closingTime, watch("timeFormat") || "12-hour", watch("timezone"))}</span>
                           {d.breakStart && d.breakEnd && (
                             <span className="text-gray-400 text-[11px]">
-                              (Break: {formatTime12Hour(d.breakStart)} - {formatTime12Hour(d.breakEnd)})
+                              (Break: {formatClinicTime(d.breakStart, watch("timeFormat") || "12-hour", watch("timezone"))} - {formatClinicTime(d.breakEnd, watch("timeFormat") || "12-hour", watch("timezone"))})
                             </span>
                           )}
                         </div>
@@ -820,13 +897,22 @@ export function SettingsClient() {
                         <Badge variant="outline">{d.code}</Badge>
                         <Badge variant={d.isActive ? "success" : "default"}>{d.isActive ? "Active" : "Inactive"}</Badge>
                         {canEdit && d.isActive && (
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => setDeleteConfirm({ open: true, id: d._id, label: `${d.name} (${d.code})` })}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => setEditDept({ id: d._id, name: d.name, code: d.code, description: d.description || "" })}
+                            >
+                              <Edit2 className="w-3.5 h-3.5 text-gray-600" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              onClick={() => setDeleteConfirm({ open: true, id: d._id, label: `${d.name} (${d.code})` })}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -866,6 +952,45 @@ export function SettingsClient() {
           )}
         </div>
       )}
+
+      {/* Edit Department Modal */}
+      <Modal open={!!editDept} onClose={() => setEditDept(null)} title="Edit Department" size="md">
+        {editDept && (
+          <div className="space-y-4 text-xs mt-2">
+            <FormField label="Department Name">
+              <Input
+                value={editDept.name}
+                onChange={(e) => setEditDept((prev) => prev ? { ...prev, name: e.target.value } : null)}
+                placeholder="Department Name"
+              />
+            </FormField>
+            <FormField label="Department Code">
+              <Input
+                value={editDept.code}
+                onChange={(e) => setEditDept((prev) => prev ? { ...prev, code: e.target.value.toUpperCase() } : null)}
+                placeholder="CODE"
+              />
+            </FormField>
+            <FormField label="Description">
+              <Input
+                value={editDept.description}
+                onChange={(e) => setEditDept((prev) => prev ? { ...prev, description: e.target.value } : null)}
+                placeholder="Description (Optional)"
+              />
+            </FormField>
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
+              <Button variant="secondary" onClick={() => setEditDept(null)}>Cancel</Button>
+              <Button
+                disabled={!editDept.name || !editDept.code}
+                loading={updateDeptMutation.isPending}
+                onClick={() => updateDeptMutation.mutate(editDept)}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Delete Department Modal */}
       <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Department" size="sm">

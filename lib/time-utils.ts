@@ -130,7 +130,7 @@ export function getClinicDayBounds(dateString: string, timeZone?: string | null)
 
   // Start of day (00:00:00.000 local)
   const utcStartGuess = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
-  let offsetStart = getTimezoneOffsetMs(utcStartGuess, tz);
+  const offsetStart = getTimezoneOffsetMs(utcStartGuess, tz);
   let start = new Date(utcStartGuess.getTime() - offsetStart);
   const refinedStartOffset = getTimezoneOffsetMs(start, tz);
   if (refinedStartOffset !== offsetStart) {
@@ -139,7 +139,7 @@ export function getClinicDayBounds(dateString: string, timeZone?: string | null)
 
   // End of day (23:59:59.999 local)
   const utcEndGuess = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
-  let offsetEnd = getTimezoneOffsetMs(utcEndGuess, tz);
+  const offsetEnd = getTimezoneOffsetMs(utcEndGuess, tz);
   let end = new Date(utcEndGuess.getTime() - offsetEnd);
   const refinedEndOffset = getTimezoneOffsetMs(end, tz);
   if (refinedEndOffset !== offsetEnd) {
@@ -171,5 +171,122 @@ export function toClinicNoonDate(dateString: string): Date {
   const [y, m, d] = clean.split("-").map(Number);
   if (!y || !m || !d) return new Date();
   return new Date(Date.UTC(y, m - 1, d, 12, 0, 0, 0));
+}
+
+// ─── GLOBAL DATE & TIME FORMATTING UTILITIES ─────────────
+export type DateFormatPattern = "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY/MM/DD";
+export type TimeFormatPattern = "12-hour" | "24-hour";
+
+function getActiveClientSettings() {
+  if (typeof window === "undefined") return null;
+  try {
+    const winSettings = (window as any).__CLINIC_SETTINGS__;
+    if (winSettings && (winSettings.dateFormat || winSettings.timeFormat || winSettings.timezone)) {
+      return winSettings;
+    }
+    const cached = localStorage.getItem("clinic_hms_settings");
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Formats a Date or ISO string into the configured clinic Date Format (e.g. DD/MM/YYYY, MM/DD/YYYY, YYYY/MM/DD).
+ */
+export function formatClinicDate(
+  input: Date | string | null | undefined,
+  dateFormat?: DateFormatPattern | null,
+  timeZone?: string | null
+): string {
+  if (!input) return "";
+  const activeSettings = getActiveClientSettings();
+  const pattern = dateFormat || activeSettings?.dateFormat || "DD/MM/YYYY";
+  const tz = timeZone || activeSettings?.timezone;
+
+  const dateStr = toClinicDateString(input, tz);
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return "";
+
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const day = String(d).padStart(2, "0");
+  const month = String(m).padStart(2, "0");
+  const year = String(y);
+
+  if (pattern === "MM/DD/YYYY") {
+    return `${month}/${day}/${year}`;
+  }
+  if (pattern === "YYYY/MM/DD") {
+    return `${year}/${month}/${day}`;
+  }
+  // Default: DD/MM/YYYY
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Formats a time string ("08:00 AM" or "14:30") or Date into configured Time Format ("12-hour" or "24-hour").
+ */
+export function formatClinicTime(
+  input: Date | string | null | undefined,
+  timeFormat?: TimeFormatPattern | null,
+  timeZone?: string | null
+): string {
+  if (!input) return "";
+  const activeSettings = getActiveClientSettings();
+  const pattern = timeFormat || activeSettings?.timeFormat || "12-hour";
+  const tz = timeZone || activeSettings?.timezone;
+
+  let hours = 0;
+  let minutes = 0;
+
+  if (input instanceof Date || (typeof input === "string" && (input.includes("T") || input.includes("Z")))) {
+    const d = input instanceof Date ? input : new Date(input);
+    if (isNaN(d.getTime())) return "";
+    const activeTz = resolveClinicTimezone(tz);
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: activeTz,
+      hour: "numeric",
+      minute: "numeric",
+      hour12: false,
+    }).formatToParts(d);
+
+    const hVal = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+    hours = hVal === 24 ? 0 : hVal;
+    minutes = parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
+  } else if (typeof input === "string") {
+    const mins = timeToMinutes(input);
+    hours = Math.floor(mins / 60);
+    minutes = mins % 60;
+  }
+
+  const mm = String(minutes).padStart(2, "0");
+
+  if (pattern === "24-hour") {
+    const hh = String(hours).padStart(2, "0");
+    return `${hh}:${mm}`;
+  } else {
+    const period = hours >= 12 ? "PM" : "AM";
+    let displayH = hours % 12;
+    if (displayH === 0) displayH = 12;
+    const hh = String(displayH).padStart(2, "0");
+    return `${hh}:${mm} ${period}`;
+  }
+}
+
+/**
+ * Formats a Date/Timestamp into both Date Format + Time Format in the clinic timezone.
+ */
+export function formatClinicDateTime(
+  input: Date | string | null | undefined,
+  dateFormat?: DateFormatPattern | null,
+  timeFormat?: TimeFormatPattern | null,
+  timeZone?: string | null
+): string {
+  if (!input) return "";
+  const dStr = formatClinicDate(input, dateFormat, timeZone);
+  const tStr = formatClinicTime(input, timeFormat, timeZone);
+  if (!dStr) return "";
+  if (!tStr) return dStr;
+  return `${dStr} ${tStr}`;
 }
 

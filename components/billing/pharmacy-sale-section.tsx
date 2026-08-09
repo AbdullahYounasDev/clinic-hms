@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Plus, AlertTriangle, Search, X, ScanLine, Loader2, Barcode as BarcodeIcon, Camera, PenLine } from "lucide-react";
 import { Card, CardBody, Button, FormField, Input, Select, Modal, Alert } from "@/components/ui";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { UseFormSetValue } from "react-hook-form";
 import { Html5Qrcode } from "html5-qrcode";
 import { toast } from "sonner";
@@ -206,13 +206,22 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
     const handleScanSuccess = useCallback(async (decodedText: string) => {
         if (checkingBarcode) return;
         await stopScanner();
-        const code = decodedText.trim();
+        const rawCode = decodedText.trim();
+        const { parseBarcodeData } = await import("@/lib/utils/barcode-parser");
+        const parsed = parseBarcodeData(rawCode);
+        const code = parsed.barcode || rawCode;
+
         setCheckingBarcode(true);
         setScannerError("");
 
         try {
-            const local = medicines.find((m: any) => m.barcode === code);
+            const local = medicines.find((m: any) => m.barcode === code || (parsed.name && m.name.toLowerCase() === parsed.name.toLowerCase()));
             if (local) {
+                if (local.expiryDate && new Date(local.expiryDate) < new Date()) {
+                    setScannerError(`Warning: ${local.name} has expired on ${formatDate(local.expiryDate)}.`);
+                    toast.warning(`${local.name} is expired.`);
+                    return;
+                }
                 const available = getAvailableStock(local._id, local.currentStock);
                 if (available <= 0) {
                     setScannerError(`${local.name} is out of stock.`);
@@ -220,12 +229,18 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
                 }
                 handleSelectMedicine(local);
                 setScannerOpen(false);
+                toast.success(`Selected: ${local.name}`);
                 return;
             }
             const res = await axios.get("/api/pharmacy/barcode", { params: { barcode: code } });
             const result = res.data?.data;
             if (result?.status === "found" && result.medicine) {
                 const m = result.medicine;
+                if (m.expiryDate && new Date(m.expiryDate) < new Date()) {
+                    setScannerError(`Warning: ${m.name} has expired on ${formatDate(m.expiryDate)}.`);
+                    toast.warning(`${m.name} is expired.`);
+                    return;
+                }
                 const available = getAvailableStock(m._id, m.currentStock);
                 if (available <= 0) {
                     setScannerError(`${m.name} is out of stock.`);
@@ -233,8 +248,9 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
                 }
                 handleSelectMedicine(m);
                 setScannerOpen(false);
+                toast.success(`Selected: ${m.name}`);
             } else {
-                setScannerError("No medicine found for this barcode.");
+                setScannerError("No medicine found for this barcode/QR code.");
             }
         } catch {
             setScannerError("Could not verify barcode. Please try again.");

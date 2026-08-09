@@ -41,9 +41,11 @@ function formatCurrency(amount: number): string {
   return `PKR ${amount?.toLocaleString()}`;
 }
 
+import { formatDate as globalFormatDate } from "@/lib/utils";
+
 function formatDate(dateStr?: string): string {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  return globalFormatDate(dateStr);
 }
 
 const pdfStyles = StyleSheet.create({
@@ -63,6 +65,8 @@ const pdfStyles = StyleSheet.create({
   statusPending: { backgroundColor: COLORS.pendingBg, color: COLORS.pendingText },
   statusOverdue: { backgroundColor: COLORS.overdueBg, color: COLORS.overdueText },
   section: { flexDirection: "row", justifyContent: "space-between", marginBottom: SPACING.sectionMarginBottom, paddingBottom: 10, borderBottom: `1pt solid ${COLORS.border}` },
+  sectionRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: SPACING.sectionMarginBottom, paddingBottom: 10, borderBottom: `1pt solid ${COLORS.border}` },
+  sectionCol: { flex: 1 },
   sectionLabel: { fontSize: FONTS.sectionLabel, fontWeight: "bold", color: COLORS.lightText, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 },
   value: { fontSize: FONTS.value, color: "#333" },
   subValue: { fontSize: 8, color: COLORS.muted, marginTop: 1 },
@@ -95,6 +99,9 @@ export interface PrintClinicDetails {
   phone?: string;
   email?: string;
   logoUrl?: string;
+  timezone?: string;
+  dateFormat?: any;
+  timeFormat?: any;
 }
 
 function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {

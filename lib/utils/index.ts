@@ -59,24 +59,31 @@ export function hasPermission(
 }
 
 // ─── DATE HELPERS ─────────────────────────────────────────
-import { toClinicDateString } from "@/lib/time-utils";
+import {
+  toClinicDateString,
+  formatClinicDate,
+  formatClinicTime,
+  formatClinicDateTime,
+  DateFormatPattern,
+} from "@/lib/time-utils";
 
-export function formatDate(date: Date | string, format = "DD/MM/YYYY"): string {
+export { formatClinicDate, formatClinicTime, formatClinicDateTime };
+
+export function formatDate(
+  date: Date | string | null | undefined,
+  format?: string | null,
+  timeZone?: string
+): string {
   if (!date) return "";
-  const dateStr = toClinicDateString(date);
-  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return "";
-
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const day = String(d).padStart(2, "0");
-  const month = String(m).padStart(2, "0");
-  const year = String(y);
-
   if (format === "MMMM D, YYYY" || format === "MMMM d, YYYY") {
+    const dateStr = toClinicDateString(date, timeZone);
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return "";
+    const [y, m, d] = dateStr.split("-").map(Number);
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     return `${monthNames[m - 1]} ${d}, ${y}`;
   }
 
-  return format.replace("DD", day).replace("MM", month).replace("YYYY", year);
+  return formatClinicDate(date, (format as DateFormatPattern) || null, timeZone);
 }
 
 export function isToday(date: Date): boolean {

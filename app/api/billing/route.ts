@@ -50,48 +50,75 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
-  // Calculate totals
-  const items = parsed.data.items.map((item) => ({
+  const { Medicine, LabTest } = await import("@/models/operations.model");
+  const { Appointment } = await import("@/models/clinical.model");
+
+  // Clean empty string fields to prevent ObjectId cast errors
+  const cleanData = { ...parsed.data };
+  if (!cleanData.patient) delete cleanData.patient;
+  if (!cleanData.doctor) delete cleanData.doctor;
+  if (!cleanData.appointment) delete cleanData.appointment;
+
+  // Calculate totals server-side
+  const items = cleanData.items.map((item) => ({
     ...item,
     total: item.quantity * item.unitPrice,
   }));
 
   const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-  let discountAmount = parsed.data.discount || 0;
-  if (parsed.data.discountType === "percentage") {
+  let discountAmount = cleanData.discount || 0;
+  if (cleanData.discountType === "percentage") {
     discountAmount = (subtotal * discountAmount) / 100;
   }
-  const taxAmount = parsed.data.tax || 0;
-  const total = subtotal - discountAmount + taxAmount;
+  const taxAmount = cleanData.tax || 0;
+  const total = Math.max(0, subtotal - discountAmount + taxAmount);
+  const paidAmount = cleanData.paidAmount || 0;
+  const balanceDue = Math.max(0, total - paidAmount);
+  let status = cleanData.status || "pending";
+  if (balanceDue === 0 && total > 0) status = "paid";
+  else if (paidAmount > 0 && balanceDue > 0) status = "partial";
 
   // Create invoice
   const invoice = await Invoice.create({
-    ...parsed.data,
+    ...cleanData,
     items,
     subtotal,
     total,
-    balanceDue: total,
-    paidAmount: 0,
+    paidAmount,
+    balanceDue,
+    status,
     createdBy: session.user.id,
   });
 
-  // --- LAB LOGIC: Only mark existing lab orders as paid ---
-  if (invoice.invoiceType === "lab" && invoice.status === "paid") {
-    const existingOrders = invoice.items.filter(item => item.labOrderId);
-    
+  // Deduct inventory stock for medicine items
+  for (const item of items) {
+    if (item.medicine && item.category === "medicine") {
+      await Medicine.findByIdAndUpdate(item.medicine, {
+        $inc: { currentStock: -item.quantity },
+      });
+    }
+  }
+
+  // --- LAB LOGIC: Only mark existing lab orders as paid if explicitly specified ---
+  if (status === "paid" || balanceDue <= 0) {
+    const existingOrders = items.filter((item) => item.labOrderId).map((item) => item.labOrderId);
     if (existingOrders.length > 0) {
       await LabTest.updateMany(
-        { _id: { $in: existingOrders.map(i => i.labOrderId) } },
-        { 
-          isPaid: true, 
-          invoiceId: invoice._id 
-        }
+        { _id: { $in: existingOrders } },
+        { isPaid: true, invoiceId: invoice._id }
       );
+    }
+
+    // --- APPOINTMENT LOGIC: Sync appointment isPaid status ---
+    if (cleanData.appointment) {
+      await Appointment.findByIdAndUpdate(cleanData.appointment, { isPaid: true });
     }
   }
 
   const populated = await Invoice.findById(invoice._id)
     .populate("patient", "firstName lastName patientId")
+    .populate("doctor", "firstName lastName")
+    .populate("createdBy", "firstName lastName")
     .lean();
 
   await auditLog({

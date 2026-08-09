@@ -4,8 +4,9 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Card, CardBody, FormField, Select, Badge } from "@/components/ui";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { UseFormSetValue } from "react-hook-form";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 
 interface LineItem {
     description: string;
@@ -26,6 +27,8 @@ interface Props {
 }
 
 export function OpdInvoiceSection({ selectedDoctor, setSelectedDoctor, selectedPatient, setSelectedPatient, watchedItems, setValue }: Props) {
+    const { formatTime } = useClinicSettings();
+
     const { data: patientsData } = useQuery({
         queryKey: ["patients-select"],
         queryFn: () => axios.get("/api/publicPatients", { params: { limit: 200 } }).then(r => r.data),
@@ -48,39 +51,41 @@ export function OpdInvoiceSection({ selectedDoctor, setSelectedDoctor, selectedP
     const doctors = doctorsData?.data || [];
     const appointments = appointmentsData?.data || [];
 
-    const addAppointmentItem = (appointment: any) => {
-        const item: LineItem = {
-            description: `Consultation - Dr. ${appointment.doctor?.user?.firstName} ${appointment.doctor?.user?.lastName}`,
+    const addAppointmentItem = (apt: any) => {
+        const docName = apt.doctor?.user ? `Dr. ${apt.doctor.user.firstName} ${apt.doctor.user.lastName}` : "Doctor";
+        const newItem: LineItem = {
+            description: `Consultation Fee — ${docName} (${formatDate(apt.scheduledDate)} at ${formatTime(apt.scheduledTime)})`,
             category: "consultation",
             quantity: 1,
-            unitPrice: appointment.consultationFee,
-            total: appointment.consultationFee,
+            unitPrice: apt.consultationFee || 0,
+            total: apt.consultationFee || 0,
         };
-        setValue("items", [...watchedItems, item]);
+        setValue("items", [...watchedItems, newItem], { shouldDirty: true, shouldValidate: true });
     };
 
     return (
         <Card>
             <CardBody>
-                <h3 className="text-xs font-semibold text-gray-900 mb-3">OPD Details</h3>
                 <div className="space-y-4">
+                    <h3 className="text-xs font-semibold text-gray-900 border-b border-gray-200 pb-2">OPD / Consultation Details</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormField label="Doctor" required>
-                            <Select value={selectedDoctor} onChange={(e) => setSelectedDoctor(e.target.value)}>
-                                <option value="">Select doctor</option>
-                                {doctors.map((d: any) => (
-                                    <option key={d._id} value={d._id}>
-                                        Dr. {d.user?.firstName} {d.user?.lastName} ({d.specialization})
+                        <FormField label="Select Patient">
+                            <Select value={selectedPatient} onChange={e => setSelectedPatient(e.target.value)}>
+                                <option value="">-- Choose Patient --</option>
+                                {patients.map((p: any) => (
+                                    <option key={p._id} value={p._id}>
+                                        {p.firstName} {p.lastName} ({p.patientId})
                                     </option>
                                 ))}
                             </Select>
                         </FormField>
-                        <FormField label="Patient" required>
-                            <Select value={selectedPatient} onChange={(e) => setSelectedPatient(e.target.value)}>
-                                <option value="">Select patient</option>
-                                {patients.map((p: any) => (
-                                    <option key={p._id} value={p._id}>
-                                        {p.firstName} {p.lastName} ({p.patientId})
+
+                        <FormField label="Select Doctor">
+                            <Select value={selectedDoctor} onChange={e => setSelectedDoctor(e.target.value)}>
+                                <option value="">-- Choose Doctor --</option>
+                                {doctors.map((d: any) => (
+                                    <option key={d._id} value={d._id}>
+                                        {d.user ? `Dr. ${d.user.firstName} ${d.user.lastName}` : d._id} ({d.specialization})
                                     </option>
                                 ))}
                             </Select>
@@ -99,7 +104,7 @@ export function OpdInvoiceSection({ selectedDoctor, setSelectedDoctor, selectedP
                                     >
                                         <div>
                                             <p className="text-xs font-medium text-gray-900">
-                                                {new Date(apt.scheduledDate).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })} at {apt.scheduledTime}
+                                                {formatDate(apt.scheduledDate)} at {formatTime(apt.scheduledTime)}
                                             </p>
                                             <p className="text-xs text-gray-400">{apt.appointmentId}</p>
                                         </div>

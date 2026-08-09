@@ -37,20 +37,41 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (!existing) return apiError("Appointment not found", 404);
   if (isArchivedStatus(existing.status)) return apiError("Appointment not found", 404);
 
+  const { toClinicDateString, toClinicNoonDate } = await import("@/lib/time-utils");
+
+  const doctorId = ((body.doctor as string) || existing.doctor).toString();
+  const scheduledDateInput = parsed.data.scheduledDate || toClinicDateString(existing.scheduledDate);
+  const scheduledTimeInput = parsed.data.scheduledTime || existing.scheduledTime;
+  const durationInput = parsed.data.duration || existing.duration || 30;
+  const typeInput = (body.type as string) || existing.type;
+  const targetStatus = parsed.data.status || existing.status;
+
+  // Validate appointment scheduling rules (clinic hours, doctor schedule, breaks, leave, availability, slot overlap)
+  if (!["cancelled", "no_show", "archived"].includes(targetStatus)) {
+    const { SchedulingService } = await import("@/services/scheduling.service");
+    const validation = await SchedulingService.validateAppointmentBooking({
+      doctor: doctorId,
+      scheduledDate: scheduledDateInput,
+      scheduledTime: scheduledTimeInput,
+      duration: durationInput,
+      type: typeInput,
+      excludeAppointmentId: id,
+    });
+    if (!validation.valid) {
+      return apiError(validation.error || "Selected slot is unavailable", 409);
+    }
+  }
+
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.status === "checked_in") updateData.checkedInAt = new Date();
   if (parsed.data.status === "completed") updateData.completedAt = new Date();
   if (parsed.data.scheduledDate) {
-    const { toClinicNoonDate } = await import("@/lib/time-utils");
     updateData.scheduledDate = toClinicNoonDate(parsed.data.scheduledDate);
   }
 
   await Appointment.findByIdAndUpdate(id, updateData);
 
-  const doctorId = ((body.doctor as string) || existing.doctor).toString();
-  const scheduledDateInput = parsed.data.scheduledDate || existing.scheduledDate;
-  const type = (body.type as string) || existing.type;
-  const isEmergency = type === "emergency";
+  const isEmergency = typeInput === "emergency";
 
   const doctorOrDateChanged =
     (body.doctor && body.doctor.toString() !== existing.doctor.toString()) ||

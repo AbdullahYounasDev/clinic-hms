@@ -267,7 +267,7 @@ export function UserDetailClient({ userId }: { userId: string }) {
                         <FormField label="First Name" required error={errors.firstName?.message}><Input {...register("firstName")} /></FormField>
                         <FormField label="Last Name" required error={errors.lastName?.message}><Input {...register("lastName")} /></FormField>
                     </div>
-                    <FormField label="Email" required error={errors.email?.message}><Input type="email" {...register("email")} /></FormField>
+                    <FormField label="Email Address (Contact admin to change)" required error={errors.email?.message}><Input type="email" {...register("email")} disabled className="bg-gray-50 text-gray-500 cursor-not-allowed" /></FormField>
                     <FormField label="Phone" required error={errors.phone?.message}><Input {...register("phone")} /></FormField>
                     {isSA && (
                         <>

@@ -16,6 +16,8 @@ const DEFAULT_PUBLIC_SETTINGS = {
   phone: "+92 300 1234567",
   email: "info@clinichms.com",
   timezone: "Asia/Karachi",
+  dateFormat: "DD/MM/YYYY",
+  timeFormat: "12-hour",
   workingDays: [
     { day: "Monday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
     { day: "Tuesday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
@@ -30,7 +32,7 @@ export async function GET(_req: NextRequest) {
   try {
     await connectDB();
     const settings = await Settings.findOne({}).select(
-      "clinicName clinicTagline clinicType logo logoPublicId clinicAddress phone email timezone workingDays closingDays"
+      "clinicName clinicTagline clinicType logo logoPublicId clinicAddress phone email timezone dateFormat timeFormat workingDays closingDays"
     ).lean();
 
     if (!settings) {
@@ -47,6 +49,8 @@ export async function GET(_req: NextRequest) {
       phone: settings.phone || DEFAULT_PUBLIC_SETTINGS.phone,
       email: settings.email || DEFAULT_PUBLIC_SETTINGS.email,
       timezone: settings.timezone || DEFAULT_PUBLIC_SETTINGS.timezone,
+      dateFormat: settings.dateFormat || DEFAULT_PUBLIC_SETTINGS.dateFormat,
+      timeFormat: settings.timeFormat === "24-hour" || settings.timeFormat === "12-hour" ? settings.timeFormat : DEFAULT_PUBLIC_SETTINGS.timeFormat,
       workingDays: settings.workingDays && settings.workingDays.length > 0 ? settings.workingDays : DEFAULT_PUBLIC_SETTINGS.workingDays,
       closingDays: settings.closingDays || [],
     });

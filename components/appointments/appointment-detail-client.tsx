@@ -9,20 +9,20 @@ import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-    ArrowLeft, Calendar, FileText, Edit2, Clock, Printer, Download, Trash2, Hash,
+    ArrowLeft, Calendar, FileText, Edit2, Clock, Printer, Download, Trash2, Hash, RefreshCw,
 } from "lucide-react";
 import {
     Card, CardBody, StatusBadge, Badge, Button,
     Skeleton, Alert, Modal, FormField, Input, Select,
 } from "@/components/ui";
-import { formatDate, formatCurrency } from "@/lib/utils";
-import { TIME_SLOTS } from "@/constants/appointments";
+import { formatDate, formatCurrency, cn } from "@/lib/utils";
 import { updateAppointmentSchema, UpdateAppointmentInput } from "@/lib/validations";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { generateAppointmentPrintHtml,AppointmentPdfTemplate } from "../printTemplates/appointment-templates";
+import { generateAppointmentPrintHtml, AppointmentPdfTemplate } from "../printTemplates/appointment-templates";
 import { pdf } from "@react-pdf/renderer";
 import { useClinicSettings } from "@/components/providers/clinic-provider";
+import { toClinicDateString } from "@/lib/time-utils";
 
 interface Appointment {
     _id: string;
@@ -45,8 +45,6 @@ interface Appointment {
     createdAt: string;
     queueNumber?: number;
 }
-
-import { toClinicDateString } from "@/lib/time-utils";
 
 export function AppointmentDetailClient({ appointmentId }: { appointmentId: string }) {
     const { data: session } = useSession();
@@ -71,11 +69,34 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
         queryFn: () => axios.get(`/api/appointments/${appointmentId}`).then(r => r.data),
     });
 
+    const a: Appointment | undefined = data?.data;
+
     const { register, handleSubmit, reset, setValue, control, formState: { errors } } = useForm<UpdateAppointmentInput>({
         resolver: zodResolver(updateAppointmentSchema),
     });
 
-    const scheduledTime = useWatch({ control, name: "scheduledTime" });
+    const watchedScheduledTime = useWatch({ control, name: "scheduledTime" });
+    const watchedScheduledDate = useWatch({ control, name: "scheduledDate" });
+    const watchedDuration = useWatch({ control, name: "duration" });
+
+    const doctorId = a?.doctor?._id;
+
+    // Fetch dynamic available slots for scheduling system logic
+    const { data: slotsData, isFetching: slotsFetching } = useQuery({
+        queryKey: ["available-slots", doctorId, watchedScheduledDate, watchedDuration, appointmentId],
+        queryFn: () =>
+            axios
+                .get("/api/appointments/available-slots", {
+                    params: {
+                        doctor: doctorId,
+                        date: watchedScheduledDate,
+                        duration: watchedDuration || 30,
+                        excludeAppointmentId: appointmentId,
+                    },
+                })
+                .then((r) => r.data),
+        enabled: editOpen && !!doctorId && !!watchedScheduledDate,
+    });
 
     const updateMutation = useMutation({
         mutationFn: (data: UpdateAppointmentInput) => {
@@ -96,7 +117,7 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
             toast.success("Appointment updated successfully!");
         },
         onError: (e: any) => {
-            const msg = e?.response?.data?.error || "Failed to update";
+            const msg = e?.response?.data?.error || "Failed to update appointment";
             setError(msg);
             toast.error(msg);
         },
@@ -120,20 +141,21 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
 
     const openEditModal = () => {
         if (data?.data) {
-            const a = data.data;
+            const appt = data.data;
             reset({
-                scheduledDate: toClinicDateString(a.scheduledDate),
-                scheduledTime: a.scheduledTime,
-                duration: a.duration,
-                type: a.type,
-                status: a.status,
-                chiefComplaint: a.chiefComplaint || "",
-                notes: a.notes || "",
-                consultationFee: a.consultationFee,
+                scheduledDate: toClinicDateString(appt.scheduledDate),
+                scheduledTime: appt.scheduledTime,
+                duration: appt.duration,
+                type: appt.type,
+                status: appt.status,
+                chiefComplaint: appt.chiefComplaint || "",
+                notes: appt.notes || "",
+                consultationFee: appt.consultationFee,
             });
-            setSelectedStatus(a.status);
-            setShowCancelReason(a.status === "cancelled");
-            if (a.status === "cancelled") setCancelReason(a?.cancellationReason || "");
+            setSelectedStatus(appt.status);
+            setShowCancelReason(appt.status === "cancelled");
+            if (appt.status === "cancelled") setCancelReason(appt?.cancellationReason || "");
+            setError("");
             setEditOpen(true);
         }
     };
@@ -146,12 +168,12 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
         if (newStatus !== "cancelled") setCancelReason("");
     };
 
-    const onSubmit = (data: UpdateAppointmentInput) => {
-        if (data.status === "cancelled" && !cancelReason) {
+    const onSubmit = (formData: UpdateAppointmentInput) => {
+        if (formData.status === "cancelled" && !cancelReason) {
             setError("Cancellation reason is required");
             return;
         }
-        updateMutation.mutate({ ...data, cancellationReason: cancelReason });
+        updateMutation.mutate({ ...formData, cancellationReason: cancelReason });
     };
 
     const handlePrint = () => {
@@ -170,12 +192,12 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
         try {
             const blob = await pdf(<AppointmentPdfTemplate appointment={data.data} logoUrl={clinicSettings.logoUrl} clinicDetails={clinicSettings} />).toBlob();
             const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `${data.data.appointmentId}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            const apptLink = document.createElement("a");
+            apptLink.href = url;
+            apptLink.download = `${data.data.appointmentId}.pdf`;
+            document.body.appendChild(apptLink);
+            apptLink.click();
+            document.body.removeChild(apptLink);
             URL.revokeObjectURL(url);
             toast.success("PDF downloaded!");
         } catch {
@@ -201,7 +223,7 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
         </div>
     );
 
-    const a: Appointment = data.data;
+    const apptRecord: Appointment = data.data;
 
     return (
         <div className="space-y-4">
@@ -212,15 +234,15 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
                     </button>
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <h1 className="text-lg font-semibold text-gray-900">{a.appointmentId}</h1>
-                            <StatusBadge status={a.status} />
+                            <h1 className="text-lg font-semibold text-gray-900">{apptRecord.appointmentId}</h1>
+                            <StatusBadge status={apptRecord.status} />
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">{formatDate(a.scheduledDate)} • {a.scheduledTime} ({a.duration} min)</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{formatDate(apptRecord.scheduledDate)} • {apptRecord.scheduledTime} ({apptRecord.duration} min)</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     {canUpdate && (
-                        <Button size="sm" onClick={() => router.push(`/opd?appointmentId=${a._id}&patientId=${a.patient?._id}`)}>
+                        <Button size="sm" onClick={() => router.push(`/opd?appointmentId=${apptRecord._id}&patientId=${apptRecord.patient?._id}`)}>
                             <FileText className="w-3.5 h-3.5" /> Create EMR
                         </Button>
                     )}
@@ -246,59 +268,58 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
                     <CardBody>
                         <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center"><Calendar className="w-4 h-4 text-teal-600" /></div><h3 className="text-xs font-semibold text-gray-900">Patient & Doctor</h3></div>
                         <div className="space-y-2.5">
-                            <Row label="Patient"><Link href={`/patients/${a.patient?._id}`} className="text-teal-600 font-medium">{a.patient?.firstName} {a.patient?.lastName}</Link></Row>
-                            <Row label="Patient ID" value={a.patient?.patientId} />
-                            <Row label="Phone" value={a.patient?.phone} />
-                            <Row label="Doctor"><Link href={`/doctors/${a.doctor?._id}`} className="text-teal-600">Dr. {a.doctor?.user?.firstName} {a.doctor?.user?.lastName}</Link></Row>
-                            <Row label="Doctor ID" value={a.doctor?.doctorId} />
+                            <Row label="Patient"><Link href={`/patients/${apptRecord.patient?._id}`} className="text-teal-600 font-medium">{apptRecord.patient?.firstName} {apptRecord.patient?.lastName}</Link></Row>
+                            <Row label="Patient ID" value={apptRecord.patient?.patientId} />
+                            <Row label="Phone" value={apptRecord.patient?.phone} />
+                            <Row label="Doctor" value={`Dr. ${apptRecord.doctor?.user?.firstName} ${apptRecord.doctor?.user?.lastName}`} />
+                            {apptRecord.department && <Row label="Department" value={apptRecord.department.name} />}
                         </div>
                     </CardBody>
                 </Card>
 
                 <Card>
                     <CardBody>
-                        <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center"><Clock className="w-4 h-4 text-teal-600" /></div><h3 className="text-xs font-semibold text-gray-900">Appointment Details</h3></div>
+                        <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center"><Clock className="w-4 h-4 text-teal-600" /></div><h3 className="text-xs font-semibold text-gray-900">Schedule & Queue</h3></div>
                         <div className="space-y-2.5">
-                            <Row label="Type"><Badge variant="outline" className="capitalize">{a.type?.replace(/_/g, " ")}</Badge></Row>
-                            <Row label="Date" value={formatDate(a.scheduledDate)} />
-                            <Row label="Time" value={`${a.scheduledTime} (${a.duration} min)`} />
-                            {a.queueNumber != null && (
-                                <Row label="Queue Token">
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200">
-                                        <Hash className="w-3 h-3 text-teal-600" />
-                                        <span className="text-sm font-bold text-teal-700">{a.queueNumber === 0 ? "P (Priority)" : a.queueNumber}</span>
-                                    </span>
-                                </Row>
-                            )}
-                            <Row label="Fee" value={formatCurrency(a.consultationFee)} />
-                            <Row label="Payment"><Badge variant={a.isPaid ? "success" : "default"}>{a.isPaid ? "Paid" : "Pending"}</Badge></Row>
+                            <Row label="Date" value={formatDate(apptRecord.scheduledDate)} />
+                            <Row label="Time" value={clinicSettings.formatTime(apptRecord.scheduledTime)} />
+                            <Row label="Duration" value={`${apptRecord.duration} mins`} />
+                            <Row label="Type"><Badge variant="outline" className="capitalize">{apptRecord.type?.replace(/_/g, " ")}</Badge></Row>
+                            <Row label="Queue Number">
+                                {apptRecord.queueNumber != null ? (
+                                    <Badge variant={apptRecord.queueNumber === 0 ? "warning" : "info"}>
+                                        #{apptRecord.queueNumber === 0 ? "P" : apptRecord.queueNumber}
+                                    </Badge>
+                                ) : <span className="text-gray-300">—</span>}
+                            </Row>
                         </div>
                     </CardBody>
                 </Card>
 
-                {a.chiefComplaint && (
-                    <Card className="sm:col-span-2">
-                        <CardBody>
-                            <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><FileText className="w-4 h-4 text-gray-400" /></div><h3 className="text-xs font-semibold text-gray-900">Chief Complaint</h3></div>
-                            <p className="text-xs text-gray-600">{a.chiefComplaint}</p>
-                        </CardBody>
-                    </Card>
-                )}
+                <Card>
+                    <CardBody>
+                        <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center"><FileText className="w-4 h-4 text-teal-600" /></div><h3 className="text-xs font-semibold text-gray-900">Clinical Overview</h3></div>
+                        <div className="space-y-2.5">
+                            <Row label="Chief Complaint" value={apptRecord.chiefComplaint || "Not specified"} />
+                            <Row label="Consultation Fee" value={formatCurrency(apptRecord.consultationFee)} />
+                        </div>
+                    </CardBody>
+                </Card>
 
-                {a.notes && (
-                    <Card className="sm:col-span-2">
+                {apptRecord.notes && (
+                    <Card>
                         <CardBody>
                             <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><FileText className="w-4 h-4 text-gray-400" /></div><h3 className="text-xs font-semibold text-gray-900">Notes</h3></div>
-                            <p className="text-xs text-gray-600">{a.notes}</p>
+                            <p className="text-xs text-gray-600">{apptRecord.notes}</p>
                         </CardBody>
                     </Card>
                 )}
 
-                {a.cancellationReason && (
+                {apptRecord.cancellationReason && (
                     <Card className="sm:col-span-2 border-red-200 bg-red-50">
                         <CardBody>
                             <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center"><FileText className="w-4 h-4 text-red-500" /></div><h3 className="text-xs font-semibold text-red-700">Cancellation Reason</h3></div>
-                            <p className="text-xs text-red-600">{a.cancellationReason}</p>
+                            <p className="text-xs text-red-600">{apptRecord.cancellationReason}</p>
                         </CardBody>
                     </Card>
                 )}
@@ -307,49 +328,150 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
                     <CardBody>
                         <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><Clock className="w-4 h-4 text-gray-400" /></div><h3 className="text-xs font-semibold text-gray-900">Record Information</h3></div>
                         <div className="flex gap-6 sm:gap-10">
-                            <div><p className="text-xs text-gray-400">Created</p><p className="text-xs text-gray-700 mt-0.5">{formatDate(a.createdAt)}</p></div>
-                            {a.checkedInAt && <div><p className="text-xs text-gray-400">Checked In</p><p className="text-xs text-gray-700 mt-0.5">{formatDate(a.checkedInAt)}</p></div>}
-                            {a.completedAt && <div><p className="text-xs text-gray-400">Completed</p><p className="text-xs text-gray-700 mt-0.5">{formatDate(a.completedAt)}</p></div>}
+                            <div><p className="text-xs text-gray-400">Created</p><p className="text-xs text-gray-700 mt-0.5">{formatDate(apptRecord.createdAt)}</p></div>
+                            {apptRecord.checkedInAt && <div><p className="text-xs text-gray-400">Checked In</p><p className="text-xs text-gray-700 mt-0.5">{formatDate(apptRecord.checkedInAt)}</p></div>}
+                            {apptRecord.completedAt && <div><p className="text-xs text-gray-400">Completed</p><p className="text-xs text-gray-700 mt-0.5">{formatDate(apptRecord.completedAt)}</p></div>}
                         </div>
                     </CardBody>
                 </Card>
             </div>
 
+            {/* Edit Appointment Modal with Scheduling System Integration */}
             <Modal open={editOpen} onClose={() => { setEditOpen(false); setError(""); }} title="Edit Appointment" size="lg">
                 {error && <Alert type="error">{error}</Alert>}
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormField label="Date" required error={errors.scheduledDate?.message}><Input type="date" {...register("scheduledDate")} /></FormField>
-                        <FormField label="Time" required error={errors.scheduledTime?.message}>
-                            <Select {...register("scheduledTime")} error={!!errors.scheduledTime}>
-                                <option value="">Select time</option>
-                                {TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
-                                {scheduledTime && !TIME_SLOTS.includes(scheduledTime || "") && (
-                                    <option value={scheduledTime}>{scheduledTime}</option>
-                                )}
-                            </Select>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <FormField label="Date" required error={errors.scheduledDate?.message}>
+                            <Input
+                                type="date"
+                                {...register("scheduledDate")}
+                                error={!!errors.scheduledDate}
+                            />
                         </FormField>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField label="Duration (mins)">
                             <Select {...register("duration", { valueAsNumber: true })}>
-                                {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60].map(d => (
+                                {[5, 10, 15, 20, 25, 30, 45, 60, 120].map(d => (
                                     <option key={d} value={d}>{d} min</option>
                                 ))}
                             </Select>
                         </FormField>
-                        <FormField label="Type"><Select {...register("type")}><option value="opd">OPD</option><option value="follow_up">Follow Up</option><option value="emergency">Emergency</option><option value="teleconsultation">Teleconsultation</option></Select></FormField>
+                        <FormField label="Type">
+                            <Select {...register("type")}>
+                                <option value="opd">OPD</option>
+                                <option value="follow_up">Follow Up</option>
+                                <option value="emergency">Emergency</option>
+                                <option value="teleconsultation">Teleconsultation</option>
+                            </Select>
+                        </FormField>
                     </div>
-                    <FormField label="Status"><Select value={selectedStatus} onChange={handleStatusChange}><option value="scheduled">Scheduled</option><option value="checked_in">Checked In</option><option value="in_consultation">In Consultation</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="no_show">No Show</option></Select></FormField>
+
+                    {/* Scheduling System Time Slot Selector */}
+                    <div className="space-y-2 pt-2 border-t border-gray-200">
+                        <div className="flex items-center justify-between">
+                            <label className="block text-xs font-semibold text-gray-800">
+                                Select Time Slot <span className="text-red-500">*</span>
+                            </label>
+                            {slotsData?.data?.appointmentDuration && (
+                                <span className="text-[11px] text-gray-500 font-medium">
+                                    Slot Duration: {slotsData.data.appointmentDuration} mins
+                                </span>
+                            )}
+                        </div>
+
+                        {!watchedScheduledDate ? (
+                            <div className="p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-center text-xs text-gray-500">
+                                Select an appointment date to calculate available slots.
+                            </div>
+                        ) : slotsFetching ? (
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
+                                <RefreshCw className="w-4 h-4 animate-spin text-teal-600" />
+                                Calculating available slots...
+                            </div>
+                        ) : slotsData?.data?.isHoliday ? (
+                            <Alert type="warning">
+                                Clinic is closed on this date: <strong>{slotsData.data.holidayReason || "Clinic Holiday"}</strong>
+                            </Alert>
+                        ) : slotsData?.data?.isOnLeave ? (
+                            <Alert type="warning">
+                                Doctor is on leave on this date: <strong>{slotsData.data.leaveReason || "On Leave"}</strong>
+                            </Alert>
+                        ) : slotsData?.data?.isWorkingDay === false ? (
+                            <Alert type="warning">
+                                Doctor is not scheduled to work on this day.
+                            </Alert>
+                        ) : slotsData?.data?.slots?.length === 0 ? (
+                            <Alert type="warning">
+                                No time slots available for the selected date.
+                            </Alert>
+                        ) : (
+                            <div className="space-y-2">
+                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1 border rounded-lg bg-gray-50/50">
+                                    {slotsData?.data?.slots?.map((s: { time: string; displayTime: string; available: boolean; reasonText?: string }) => {
+                                        const isSelected = watchedScheduledTime === s.time;
+                                        return (
+                                            <button
+                                                key={s.time}
+                                                type="button"
+                                                disabled={!s.available}
+                                                onClick={() => {
+                                                    setValue("scheduledTime", s.time, { shouldValidate: true });
+                                                    setError("");
+                                                }}
+                                                className={cn(
+                                                    "flex flex-col items-center justify-center py-2 px-1.5 rounded-md text-xs font-medium transition-all border cursor-pointer",
+                                                    isSelected
+                                                        ? "bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-600/30"
+                                                        : s.available
+                                                            ? "bg-white border-teal-200 text-teal-900 hover:bg-teal-50 hover:border-teal-400"
+                                                            : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                                                )}
+                                                title={!s.available ? s.reasonText || "Unavailable" : `Select ${s.displayTime}`}
+                                            >
+                                                <span>{s.displayTime}</span>
+                                                {!s.available && (
+                                                    <span className="text-[9px] font-normal leading-tight text-gray-500 mt-0.5">
+                                                        {s.reasonText}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                {errors.scheduledTime && (
+                                    <p className="text-xs text-red-500 font-medium">{errors.scheduledTime.message}</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <FormField label="Status">
+                        <Select value={selectedStatus} onChange={handleStatusChange}>
+                            <option value="scheduled">Scheduled</option>
+                            <option value="checked_in">Checked In</option>
+                            <option value="in_consultation">In Consultation</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="no_show">No Show</option>
+                        </Select>
+                    </FormField>
                     {showCancelReason && (
                         <FormField label="Cancellation Reason" required>
-                            <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={2} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs resize-none focus:outline-none focus:border-teal-600 text-gray-700 placeholder:text-gray-400" placeholder="Reason for cancellation..." />
+                            <textarea
+                                value={cancelReason}
+                                onChange={(e) => setCancelReason(e.target.value)}
+                                rows={2}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs resize-none focus:outline-none focus:border-teal-600 text-gray-700 placeholder:text-gray-400"
+                                placeholder="Reason for cancellation..."
+                            />
                         </FormField>
                     )}
                     <FormField label="Chief Complaint"><Input {...register("chiefComplaint")} /></FormField>
                     <FormField label="Notes"><textarea {...register("notes")} rows={2} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs resize-none focus:outline-none focus:border-teal-600 text-gray-700 placeholder:text-gray-400" /></FormField>
                     <FormField label="Consultation Fee"><Input type="number" {...register("consultationFee", { valueAsNumber: true })} /></FormField>
-                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-300"><Button type="button" variant="secondary" onClick={() => { setEditOpen(false); setError(""); }}>Cancel</Button><Button type="submit" loading={updateMutation.isPending}>Save Changes</Button></div>
+                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
+                        <Button type="button" variant="secondary" onClick={() => { setEditOpen(false); setError(""); }}>Cancel</Button>
+                        <Button type="submit" loading={updateMutation.isPending}>Save Changes</Button>
+                    </div>
                 </form>
             </Modal>
 
@@ -359,7 +481,7 @@ export function AppointmentDetailClient({ appointmentId }: { appointmentId: stri
                         <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                         <div>
                             <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
-                            <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{a.appointmentId}</strong>.</p>
+                            <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{apptRecord.appointmentId}</strong>.</p>
                         </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">

@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
         if (dateTo) (filter.createdAt as Record<string, unknown>).$lte = new Date(dateTo);
     }
 
-    const [invoices, total] = await Promise.all([
+    const [invoices, total, summary] = await Promise.all([
         Invoice.find(filter)
             .skip(skip)
             .limit(limit)
@@ -58,9 +58,28 @@ export async function GET(req: NextRequest) {
             .populate("createdBy", "firstName lastName")
             .lean(),
         Invoice.countDocuments(filter),
+        Invoice.aggregate([
+            { $match: filter },
+            {
+                $group: {
+                    _id: null,
+                    totalPaid: { $sum: "$paidAmount" },
+                    totalPending: { $sum: "$balanceDue" },
+                },
+            },
+        ]),
     ]);
 
-    return apiSuccess(invoices, "Invoices fetched", 200, buildPagination(total, page, limit));
+    return apiSuccess(
+        {
+            invoices,
+            totalPaid: summary[0]?.totalPaid || 0,
+            totalPending: summary[0]?.totalPending || 0,
+        },
+        "Invoices fetched",
+        200,
+        buildPagination(total, page, limit)
+    );
 }
 
 export async function POST(req: NextRequest) {
@@ -74,16 +93,43 @@ export async function POST(req: NextRequest) {
 
     await connectDB();
 
+    const { Medicine, LabTest } = await import("@/models/operations.model");
+    const { Appointment } = await import("@/models/clinical.model");
+
     // Clean empty string fields to prevent ObjectId cast errors
     const cleanData = { ...parsed.data };
-    if (cleanData.patient === "" || cleanData.patient === null) delete cleanData.patient;
-    if (cleanData.doctor === "" || cleanData.doctor === null) delete cleanData.doctor;
-    if (cleanData.appointment === "" || cleanData.appointment === null) delete cleanData.appointment;
+    if (!cleanData.patient) delete cleanData.patient;
+    if (!cleanData.doctor) delete cleanData.doctor;
+    if (!cleanData.appointment) delete cleanData.appointment;
+
+    // Recalculate item totals and subtotal server-side to prevent client tampering
+    const items = (cleanData.items || []).map((item) => ({
+        ...item,
+        total: item.quantity * item.unitPrice,
+    }));
+
+    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+    let discountAmount = cleanData.discount || 0;
+    if (cleanData.discountType === "percentage") {
+        discountAmount = (subtotal * discountAmount) / 100;
+    }
+    const taxAmount = cleanData.taxAmount || cleanData.tax || 0;
+    const total = Math.max(0, subtotal - discountAmount + taxAmount);
+    const paidAmount = cleanData.paidAmount || 0;
+    const balanceDue = Math.max(0, total - paidAmount);
+    let status = cleanData.status || "pending";
+    if (balanceDue === 0 && total > 0) status = "paid";
+    else if (paidAmount > 0 && balanceDue > 0) status = "partial";
 
     const invoiceData = {
         ...cleanData,
+        items,
+        subtotal,
+        total,
+        paidAmount,
+        balanceDue,
+        status,
         createdBy: session.user.id,
-        balanceDue: cleanData.total - (cleanData.paidAmount || 0),
     };
 
     const invoice = await Invoice.create(invoiceData);
@@ -98,27 +144,22 @@ export async function POST(req: NextRequest) {
         }
     }
 
-    // --- LAB LOGIC: Link invoiceId and update isPaid for existing lab orders ---
-    if (invoice.invoiceType === "lab" || invoiceData.invoiceType === "lab") {
-        const labOrderIds = invoice.items?.filter((item: any) => item.labOrderId).map((item: any) => item.labOrderId) || [];
-        const { LabTest } = await import("@/models/operations.model");
+    // --- LAB LOGIC: Link invoiceId and update isPaid ONLY for explicit lab orders ---
+    const labOrderIds = (invoice.items || []).map((item: any) => item.labOrderId).filter(Boolean);
+    if (labOrderIds.length > 0) {
         const updatePayload: Record<string, unknown> = { invoiceId: invoice._id };
-
-        if (invoice.status === "paid" || (invoice.paidAmount && invoice.paidAmount >= invoice.total) || invoice.balanceDue <= 0) {
+        if (invoice.status === "paid" || invoice.balanceDue <= 0) {
             updatePayload.isPaid = true;
         }
+        await LabTest.updateMany(
+            { _id: { $in: labOrderIds } },
+            updatePayload
+        );
+    }
 
-        if (labOrderIds.length > 0) {
-            await LabTest.updateMany(
-                { _id: { $in: labOrderIds } },
-                updatePayload
-            );
-        } else if (invoice.patient) {
-            await LabTest.updateMany(
-                { patient: invoice.patient, isPaid: false },
-                updatePayload
-            );
-        }
+    // --- APPOINTMENT LOGIC: Sync appointment isPaid status ---
+    if ((invoice.status === "paid" || invoice.balanceDue <= 0) && cleanData.appointment) {
+        await Appointment.findByIdAndUpdate(cleanData.appointment, { isPaid: true });
     }
 
     const populatedInvoice = await Invoice.findById(invoice._id)

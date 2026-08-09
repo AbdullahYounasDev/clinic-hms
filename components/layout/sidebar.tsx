@@ -13,11 +13,11 @@ import {
   Sparkles,
   Hospital,
   X,
-  Building,
 } from "lucide-react";
 import { useState } from "react";
 import { useSidebar } from "../sidebar-context";
 import { useClinicSettings } from "@/components/providers/clinic-provider";
+import { PoweredByNyron } from "@/components/ui";
 
 interface NavItem {
   label: string;
@@ -42,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Expenses", href: "/expenses", icon: TrendingDown, permission: "expenses:view", category: "Finance" },
   { label: "Reports", href: "/reports", icon: BarChart3, permission: "reports:view", category: "Reports" },
   { label: "Profile", href: "/profile", icon: UserCircle, category: "Personal" },
-  { label: "AI Assistant", href: "/ai-assistant", icon: Sparkles, category: "Personal" },
+  { label: "AI Assistant", href: "/ai-assistant", icon: Sparkles, permission: "ai_assistant:view", category: "Personal" },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [
@@ -89,31 +89,31 @@ export function Sidebar({ session }: SidebarProps) {
       {/* Mobile backdrop - click to close */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-90 md:hidden"
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-90 md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       <aside
         className={cn(
-          "bg-white border-r border-gray-300 flex flex-col shrink-0 h-screen transition-transform duration-200 ease-in-out",
+          "bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col shrink-0 h-screen transition-all duration-200 ease-in-out z-20",
           // Mobile: fixed off-canvas drawer, fully hidden unless opened
           "fixed top-0 left-0 z-100 w-64",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
           // Desktop (md+): in normal flow, always visible, width driven by collapsed state
           "md:static md:translate-x-0 md:z-auto",
-          collapsed ? "md:w-16" : "md:w-54"
+          collapsed ? "md:w-16" : "md:w-56"
         )}
       >
         {/* Brand */}
-        <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-300 relative">
+        <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-200 dark:border-gray-800 relative">
           {logoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={logoUrl}
               alt="Logo"
               className="rounded-lg object-contain shrink-0"
-              style={{ width: "40px", height: "40px" }}
+              style={{ width: "36px", height: "36px" }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 if (!target.src.endsWith("/logo.png")) {
@@ -122,21 +122,21 @@ export function Sidebar({ session }: SidebarProps) {
               }}
             />
           ) : (
-            <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center shrink-0 shadow-xs">
               <Hospital className="w-5 h-5 text-white" />
             </div>
           )}
           {showLabels && (
             <div className="overflow-hidden flex-1">
-              <p className="font-semibold text-sm text-gray-900 leading-tight truncate">{clinicName}</p>
-              <p className="text-xs text-gray-500 truncate">{clinicTagline}</p>
+              <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 leading-tight truncate">{clinicName}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{clinicTagline}</p>
             </div>
           )}
 
           {/* Close button - mobile drawer only */}
           <button
             onClick={() => setMobileOpen(false)}
-            className="md:hidden p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all cursor-pointer"
+            className="md:hidden p-1.5 rounded-full text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer"
             aria-label="Close sidebar"
           >
             <X className="w-4 h-4" />
@@ -146,7 +146,7 @@ export function Sidebar({ session }: SidebarProps) {
           <button
             onClick={toggleSidebar}
             className={cn(
-              "hidden md:flex absolute -right-3 -bottom-3 p-1 rounded-full bg-teal-600 border border-teal-600 text-white hover:text-teal-600 hover:bg-white hover:border-teal-600 transition-all shadow-sm z-10 cursor-pointer",
+              "hidden md:flex absolute -right-3 -bottom-3 p-1 rounded-full bg-teal-600 border border-teal-600 text-white hover:text-teal-600 hover:bg-white dark:hover:bg-gray-900 hover:border-teal-600 transition-all shadow-sm z-10 cursor-pointer",
               collapsed && "rotate-180"
             )}
           >
@@ -155,18 +155,18 @@ export function Sidebar({ session }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2">
+        <nav className="flex-1 overflow-y-auto py-4 px-2.5 space-y-4">
           {Object.entries(groupedItems).map(([category, items], index) => (
             <div key={category}>
               {showLabels && (
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-3 pb-1.5">
+                <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-3 pb-2">
                   {category}
                 </p>
               )}
               {!showLabels && index !== 0 && (
-                <div className="border-t border-gray-300 mb-1 mx-3" />
+                <div className="border-t border-gray-200 dark:border-gray-800 mb-2 mx-2" />
               )}
-              <div className={cn("space-y-0.5", index !== categories.length - 1 && "mb-3")}>
+              <div className="space-y-1">
                 {items.map((item) => (
                   <NavLink
                     key={item.href}
@@ -180,6 +180,13 @@ export function Sidebar({ session }: SidebarProps) {
             </div>
           ))}
         </nav>
+
+        {/* Powered by NYRON Footer */}
+        {showLabels && (
+          <div className="p-3 border-t border-gray-200 dark:border-gray-800">
+            <PoweredByNyron />
+          </div>
+        )}
       </aside>
     </>
   );
@@ -203,16 +210,16 @@ function NavLink({
       title={collapsed ? item.label : undefined}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer group",
+        "flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer group active:scale-[0.98]",
         isActive
-          ? "bg-teal-600 text-white"
-          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
+          ? "bg-teal-600 text-white shadow-xs"
+          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800/80",
         collapsed && "justify-center px-2"
       )}
     >
       <Icon className={cn(
         "w-4 h-4 shrink-0 transition-colors",
-        isActive ? "text-white" : "text-gray-400 group-hover:text-gray-700"
+        isActive ? "text-white" : "text-gray-400 dark:text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300"
       )} />
       {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>

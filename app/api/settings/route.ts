@@ -18,6 +18,9 @@ const DEFAULT_SETTINGS = {
   clinicAddress: "123 Healthcare Avenue, Medical District",
   phone: "+92 300 1234567",
   email: "info@clinichms.com",
+  timezone: "Asia/Karachi",
+  dateFormat: "DD/MM/YYYY",
+  timeFormat: "12-hour",
   workingDays: [
     { day: "Monday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },
     { day: "Tuesday", openingTime: "08:00 AM", breakStart: "01:00 PM", breakEnd: "02:00 PM", closingTime: "05:00 PM", isOpen: true },

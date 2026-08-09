@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
-import { Search, Plus, Filter, ChevronDown, X, Archive, Eye, EyeOff, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Search, Plus, Filter, ChevronDown, X, Archive, Eye, EyeOff, AlertTriangle, ShieldCheck, RefreshCw, RotateCcw } from "lucide-react";
 import {
   Card, Table, Th, Td, StatusBadge,
   Button, Modal, FormField, Input, Select, EmptyState,
@@ -112,7 +112,7 @@ export function PatientsClient() {
     return () => clearTimeout(handler);
   }, [searchInput]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["patients", page, debouncedSearch, statusFilter],
     queryFn: () =>
       axios
@@ -653,7 +653,7 @@ export function PatientsClient() {
           )}
 
           {/* Optional Section: Patient Portal Access */}
-          <OptionalToggleHeader label="Enable Patient Portal Access" checked={enablePortal} onChange={setEnablePortal} hint="Allows patient to log in using Email + Password to view records online" />
+          <OptionalToggleHeader label="Enable Patient Portal Access" icon={ShieldCheck} checked={enablePortal} onChange={setEnablePortal} hint="Allows patient to log in using Email + Password to view records online" />
           {enablePortal && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 p-3 bg-teal-50/50 rounded-xl border border-teal-100">
               <FormField label="Portal Email Address" required error={errors.email?.message}>

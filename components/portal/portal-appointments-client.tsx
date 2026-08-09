@@ -7,6 +7,7 @@ import { Plus, Calendar, Clock, AlertCircle, RefreshCw, XCircle } from "lucide-r
 import { Card, Table, Th, Td, StatusBadge, EmptyState, Pagination, Badge, Button, Modal, FormField, Input, Select, Alert } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 import { toClinicDateString } from "@/lib/time-utils";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 import { toast } from "sonner";
 import { PatientQueueBanner, PatientQueueBannerData } from "./patient-queue-banner";
 
@@ -16,6 +17,7 @@ const getTodayString = () => {
 };
 
 export function PortalAppointmentsClient() {
+  const { formatTime } = useClinicSettings();
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
 
@@ -203,9 +205,7 @@ export function PortalAppointmentsClient() {
           <h1 className="text-lg font-semibold text-gray-900">Appointments</h1>
           <p className="text-xs text-gray-500 mt-0.5">Your scheduled and past visits</p>
         </div>
-        <Button size="sm" onClick={() => setBookModalOpen(true)}>
-          <Plus className="w-4 h-4" /> Book Appointment
-        </Button>
+        {/* Book Appointment button hidden per requirements */}
       </div>
 
       <PatientQueueBanner
@@ -246,7 +246,7 @@ export function PortalAppointmentsClient() {
                       <div className="text-xs text-gray-500">{a.doctor?.specialization}</div>
                     </Td>
                     <Td className="text-gray-500">{formatDate(a.scheduledDate)}</Td>
-                    <Td className="text-gray-500">{a.scheduledTime}</Td>
+                    <Td className="text-gray-500">{formatTime(a.scheduledTime)}</Td>
                     <Td>
                       {a.queueNumber != null ? (
                         <Badge variant={a.queueNumber === 0 ? "warning" : "info"}>
@@ -265,18 +265,8 @@ export function PortalAppointmentsClient() {
                       )}
                     </Td>
                     <Td>
-                      {canModify ? (
-                        <div className="flex items-center gap-1.5">
-                          <Button size="sm" variant="secondary" onClick={() => openRescheduleModal(a)}>
-                            <RefreshCw className="w-3 h-3" /> Reschedule
-                          </Button>
-                          <Button size="sm" variant="danger" onClick={() => openCancelModal(a)}>
-                            <XCircle className="w-3 h-3" /> Cancel
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-300">—</span>
-                      )}
+                      {/* Temporarily disabled patient appointment reschedule/cancel per requirements */}
+                      <span className="text-xs text-gray-400 italic font-medium">—</span>
                     </Td>
                   </tr>
                 );
@@ -327,7 +317,7 @@ export function PortalAppointmentsClient() {
                 <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
                   <span>{formatDate(a.scheduledDate)}</span>
                   <span className="text-gray-300">•</span>
-                  <span>{a.scheduledTime}</span>
+                  <span>{formatTime(a.scheduledTime)}</span>
                   {a.queueNumber != null && (
                     <>
                       <span className="text-gray-300">•</span>
@@ -344,16 +334,7 @@ export function PortalAppointmentsClient() {
                   </div>
                 )}
 
-                {canModify && (
-                  <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
-                    <Button size="sm" variant="secondary" onClick={() => openRescheduleModal(a)}>
-                      <RefreshCw className="w-3 h-3" /> Reschedule
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={() => openCancelModal(a)}>
-                      <XCircle className="w-3 h-3" /> Cancel
-                    </Button>
-                  </div>
-                )}
+                {/* Temporarily disabled patient appointment reschedule/cancel per requirements */}
               </div>
             );
           })

@@ -24,6 +24,8 @@ interface Expense {
   createdBy: { firstName: string; lastName: string };
 }
 
+import { toClinicDateString } from "@/lib/time-utils";
+
 export function ExpensesClient() {
   const { data: session } = useSession();
   const qc = useQueryClient();
@@ -32,8 +34,9 @@ export function ExpensesClient() {
   const [page, setPage] = useState(1);
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
-  const [from, setFrom] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0]);
-  const [to, setTo] = useState(new Date().toISOString().split("T")[0]);
+  const now = new Date();
+  const [from, setFrom] = useState(toClinicDateString(new Date(now.getFullYear(), now.getMonth(), 1)));
+  const [to, setTo] = useState(toClinicDateString(now));
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -59,7 +62,7 @@ export function ExpensesClient() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateExpenseInput>({
     resolver: zodResolver(createExpenseSchema),
-    defaultValues: { date: new Date().toISOString().split("T")[0] },
+    defaultValues: { date: toClinicDateString(new Date()) },
   });
 
   const createMutation = useMutation({

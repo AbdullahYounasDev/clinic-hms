@@ -2,6 +2,7 @@
 
 import { RefreshCw, Hash } from "lucide-react";
 import { Button } from "@/components/ui";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 
 export interface PatientQueueBannerData {
   hasActiveQueue: boolean;
@@ -22,6 +23,7 @@ export function PatientQueueBanner({
   onReload: () => void;
   isReloading?: boolean;
 }) {
+  const { formatTime } = useClinicSettings();
   if (!data?.hasActiveQueue) return null;
 
   return (
@@ -84,7 +86,7 @@ export function PatientQueueBanner({
       )}
       {data.status === "scheduled" && (
         <p className="mt-3 text-[10px] text-teal-600">
-          Your appointment is scheduled{data.scheduledTime ? ` at ${data.scheduledTime}` : ""}. Please check in at reception upon arrival.
+          Your appointment is scheduled{data.scheduledTime ? ` at ${formatTime(data.scheduledTime)}` : ""}. Please check in at reception upon arrival.
         </p>
       )}
     </div>

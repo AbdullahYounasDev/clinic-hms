@@ -56,11 +56,11 @@ export function BillingClient() {
       }).then((r) => r.data),
   });
 
-  const invoices: Invoice[] = data?.data || [];
+  const invoices: Invoice[] = Array.isArray(data?.data) ? data.data : data?.data?.invoices || [];
   const pagination = data?.pagination;
 
-  const totalRevenue = invoices.reduce((s, i) => s + (i.paidAmount || 0), 0);
-  const totalPending = invoices.reduce((s, i) => s + (i.balanceDue || 0), 0);
+  const totalRevenue = data?.data?.totalPaid ?? invoices.reduce((s, i) => s + (i.paidAmount || 0), 0);
+  const totalPending = data?.data?.totalPending ?? invoices.reduce((s, i) => s + (i.balanceDue || 0), 0);
 
   const typeLabel = (type: string) => {
     const labels: Record<string, string> = {

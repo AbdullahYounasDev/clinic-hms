@@ -103,6 +103,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   // ==================== USER: CHANGE OWN PASSWORD ====================
   if (body.currentPassword && body.newPassword) {
+    if (session.user.id !== id && !session.user.isSuperAdmin) {
+      return apiError("Forbidden — You can only change your own password", 403);
+    }
+
     // Verify current password
     const isMatch = await bcrypt.compare(body.currentPassword, existingUser.password);
     if (!isMatch) return apiError("Current password is incorrect", 401);
@@ -152,6 +156,26 @@ export async function PUT(req: NextRequest, { params }: Params) {
     delete updateData.status;
   }
 
+  // Auto-instantiate Doctor profile if role is updated to Doctor
+  if (body.role) {
+    const { Role } = await import("@/models/user.model");
+    const roleDoc = await Role.findById(body.role).lean();
+    if (roleDoc && (roleDoc.slug?.toLowerCase().includes("doctor") || roleDoc.name?.toLowerCase().includes("doctor"))) {
+      const existingDoctor = await Doctor.findOne({ user: id }).lean();
+      if (!existingDoctor) {
+        const docIdStr = `DOC-${Math.floor(1000 + Math.random() * 9000)}`;
+        await Doctor.create({
+          user: id,
+          doctorId: docIdStr,
+          specialization: "General Physician",
+          consultationFee: 0,
+          isAvailable: true,
+          status: "active",
+        });
+      }
+    }
+  }
+
   // ==================== SYNC DOCTOR AVAILABILITY ====================
   // Check if status is being updated
   if (body.status) {
@@ -160,12 +184,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
       // If user is suspended or inactive, set doctor unavailable
       if (body.status === "suspended" || body.status === "inactive" || body.status === "locked" || body.status === "archived") {
         await Doctor.findByIdAndUpdate(doctor._id, { isAvailable: false, status: "archived" });
-        console.log(`Doctor ${doctor._id} set to unavailable due to user status: ${body.status}`);
       }
       // If user is active, set doctor available
       else if (body.status === "active") {
         await Doctor.findByIdAndUpdate(doctor._id, { isAvailable: true, status: "active" });
-        console.log(`Doctor ${doctor._id} set to available due to user active`);
       }
     }
   }

@@ -16,6 +16,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { DoctorLeave, WeeklySchedule, DaySchedule } from "@/types";
 import { timeToMinutes, minutesToTime, minutesToDisplayTime } from "@/lib/time-utils";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 
 interface Doctor {
   _id: string;
@@ -51,6 +52,7 @@ interface EditDoctorInput {
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 
 export function DoctorDetailClient({ doctorId }: { doctorId: string }) {
+  const { formatTime } = useClinicSettings();
   const { data: session } = useSession();
   const router = useRouter();
   const qc = useQueryClient();
@@ -548,11 +550,11 @@ export function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                   ) : isWorking ? (
                     <>
                       <div className="text-slate-600 font-medium">
-                        Hours: {minutesToDisplayTime(timeToMinutes(sched?.startTime || "09:00"))} – {minutesToDisplayTime(timeToMinutes(sched?.endTime || "17:00"))}
+                        Hours: {formatTime(sched?.startTime || "09:00")} – {formatTime(sched?.endTime || "17:00")}
                       </div>
                       {sched?.breakStart && sched?.breakEnd ? (
                         <div className="text-amber-700 flex items-center gap-1 text-[11px]">
-                          <Coffee className="w-3 h-3" /> Break: {minutesToDisplayTime(timeToMinutes(sched.breakStart))} – {minutesToDisplayTime(timeToMinutes(sched.breakEnd))}
+                          <Coffee className="w-3 h-3" /> Break: {formatTime(sched.breakStart)} – {formatTime(sched.breakEnd)}
                         </div>
                       ) : (
                         <div className="text-slate-400 text-[11px]">No break scheduled</div>
@@ -833,7 +835,7 @@ export function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                       <strong>{appt.appointmentId}</strong> — {appt.patientName}
                     </span>
                     <span>
-                      {formatDate(appt.date)} @ {appt.time}
+                      {formatDate(appt.date)} @ {formatTime(appt.time)}
                     </span>
                   </div>
                 ))}

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import connectDB from "@/lib/db/mongoose";
 import { Doctor, Appointment } from "@/models/clinical.model";
 import { Settings } from "@/models/operations.model";
@@ -29,7 +30,8 @@ export class SchedulingService {
   static async getAvailableSlots(
     doctorId: string,
     dateInput: string | Date,
-    requestedDuration?: number
+    requestedDuration?: number,
+    excludeAppointmentId?: string
   ): Promise<SlotResult> {
     await connectDB();
 
@@ -189,11 +191,17 @@ export class SchedulingService {
     const searchStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() - 1, 0, 0, 0, 0);
     const searchEnd = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1, 23, 59, 59, 999);
 
-    const existingAppointments = await Appointment.find({
+    const filter: Record<string, unknown> = {
       doctor: doctorId,
       scheduledDate: { $gte: searchStart, $lte: searchEnd },
       status: { $in: ["scheduled", "checked_in", "in_consultation", "completed"] },
-    }).select("scheduledDate scheduledTime duration").lean();
+    };
+
+    if (excludeAppointmentId && mongoose.Types.ObjectId.isValid(excludeAppointmentId)) {
+      filter._id = { $ne: excludeAppointmentId };
+    }
+
+    const existingAppointments = await Appointment.find(filter).select("scheduledDate scheduledTime duration").lean();
 
     const bookedIntervals: Array<{ start: number; end: number }> = [];
     for (const appt of existingAppointments) {
@@ -393,8 +401,14 @@ export class SchedulingService {
     scheduledTime: string;
     duration?: number;
     type?: string;
+    excludeAppointmentId?: string;
   }): Promise<{ valid: boolean; error?: string }> {
-    const slotResult = await this.getAvailableSlots(data.doctor, data.scheduledDate, data.duration);
+    const slotResult = await this.getAvailableSlots(
+      data.doctor,
+      data.scheduledDate,
+      data.duration,
+      data.excludeAppointmentId
+    );
 
     if (slotResult.isHoliday) {
       return {
@@ -447,10 +461,12 @@ export class SchedulingService {
     endDateInput: string | Date
   ): Promise<{ conflictCount: number; appointments: Array<{ id: string; appointmentId: string; date: Date; time: string; patientName: string }> }> {
     await connectDB();
-    const sDate = new Date(startDateInput);
-    const eDate = new Date(endDateInput);
-    const sStart = new Date(sDate.getFullYear(), sDate.getMonth(), sDate.getDate(), 0, 0, 0, 0);
-    const eEnd = new Date(eDate.getFullYear(), eDate.getMonth(), eDate.getDate(), 23, 59, 59, 999);
+    const { getClinicTimezone, getClinicDayBounds, toClinicDateString } = await import("@/lib/time-utils");
+    const clinicTz = await getClinicTimezone();
+    const sDateStr = toClinicDateString(startDateInput, clinicTz);
+    const eDateStr = toClinicDateString(endDateInput, clinicTz);
+    const sStart = getClinicDayBounds(sDateStr, clinicTz).start;
+    const eEnd = getClinicDayBounds(eDateStr, clinicTz).end;
 
     const conflicting = await Appointment.find({
       doctor: doctorId,

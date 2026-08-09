@@ -13,6 +13,7 @@ import {
 } from "@/components/ui";
 import { createAppointmentSchema, CreateAppointmentInput, createPatientSchema, CreatePatientInput } from "@/lib/validations";
 import { formatDate, cn } from "@/lib/utils";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 import { formatCNIC, normalizeCNIC } from "@/lib/utils/cnic-utils";
 import { TIME_SLOTS } from "@/constants/appointments";
 import { useSession } from "next-auth/react";
@@ -116,6 +117,7 @@ export function AppointmentsClient() {
     matches: [],
   });
 
+  const { formatTime } = useClinicSettings();
   const perms = session?.user.permissions || [];
   const isSA = session?.user.isSuperAdmin;
   const isDoctorUser = !isSA && (session?.user?.roleSlug === "doctor" || session?.user?.role?.toLowerCase()?.includes("doctor"));
@@ -181,7 +183,7 @@ export function AppointmentsClient() {
 
   // Appointment Form
   const { register, handleSubmit, reset, setValue, control, formState: { errors } } = useForm<CreateAppointmentInput>({
-    resolver: zodResolver(createAppointmentSchema),
+    resolver: zodResolver(createAppointmentSchema) as any,
     defaultValues: {
       patient: "", doctor: "", type: "opd", scheduledDate: dateFilter || todayStr,
       scheduledTime: "", duration: 30, consultationFee: 0, chiefComplaint: "", notes: "",
@@ -589,7 +591,7 @@ export function AppointmentsClient() {
                   </Td>
                   <Td className="text-gray-600">
                     <div>{formatDate(a.scheduledDate)}</div>
-                    <div className="text-[11px] text-gray-400">{a.scheduledTime} ({a.duration} min)</div>
+                    <div className="text-[11px] text-gray-400">{formatTime(a.scheduledTime)} ({a.duration} min)</div>
                   </Td>
                   <Td><Badge variant="outline" className="capitalize">{a.type?.replace(/_/g, " ")}</Badge></Td>
                   <Td>
@@ -659,7 +661,7 @@ export function AppointmentsClient() {
                   Dr. {a.doctor?.user?.firstName} {a.doctor?.user?.lastName}
                 </div>
                 <div className="text-[11px] text-gray-400 mt-0.5">
-                  {formatDate(a.scheduledDate)} • {a.scheduledTime}
+                  {formatDate(a.scheduledDate)} • {formatTime(a.scheduledTime)}
                 </div>
               </div>
               <div className="flex items-center gap-1">

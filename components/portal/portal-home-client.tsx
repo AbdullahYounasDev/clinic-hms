@@ -6,9 +6,11 @@ import Link from "next/link";
 import { Card, CardBody, Skeleton, Alert } from "@/components/ui";
 import { Calendar, Clipboard, Receipt, FlaskConical, Pill } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 import { PatientQueueBanner, PatientQueueBannerData } from "./patient-queue-banner";
 
 export function PortalHomeClient() {
+  const { formatTime } = useClinicSettings();
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["portal-me"],
     queryFn: () => axios.get("/api/portal/me").then((r) => r.data),
@@ -102,7 +104,7 @@ export function PortalHomeClient() {
                       Dr. {a.doctor?.user?.firstName} {a.doctor?.user?.lastName}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {formatDate(a.scheduledDate)} · {a.scheduledTime}
+                      {formatDate(a.scheduledDate)} · {formatTime(a.scheduledTime)}
                     </p>
                   </div>
                   <div className="text-right shrink-0">

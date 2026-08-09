@@ -28,9 +28,11 @@ const SPACING = {
   sectionMarginBottom: 14,
 };
 
+import { formatDate as globalFormatDate } from "@/lib/utils";
+
 function formatDate(dateStr?: string): string {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  return globalFormatDate(dateStr);
 }
 
 const pdfStyles = StyleSheet.create({
@@ -89,6 +91,9 @@ export interface PrintClinicDetails {
   phone?: string;
   email?: string;
   logoUrl?: string;
+  timezone?: string;
+  dateFormat?: any;
+  timeFormat?: any;
 }
 
 function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {

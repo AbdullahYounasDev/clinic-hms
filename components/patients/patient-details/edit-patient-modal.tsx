@@ -6,7 +6,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { updatePatientSchema, UpdatePatientInput } from "@/lib/validations";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, AlertTriangle, ShieldCheck, RotateCcw } from "lucide-react";
 import { formatCNIC, normalizeCNIC } from "@/lib/utils/cnic-utils";
 import axios from "axios";
 

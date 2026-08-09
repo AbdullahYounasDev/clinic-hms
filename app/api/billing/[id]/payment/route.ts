@@ -77,17 +77,22 @@ export async function POST(req: NextRequest, { params }: Params) {
     .lean();
 
   // --- LAB LOGIC: If invoice is now fully paid, mark lab orders as paid ---
-  if (updated && updated.invoiceType === "lab" && newStatus === "paid") {
-    const existingOrders = updated.items.filter(item => item.labOrderId);
-    
+  if (updated && newStatus === "paid") {
+    const existingOrders = updated.items.filter(item => item.labOrderId).map(i => i.labOrderId);
     if (existingOrders.length > 0) {
       await LabTest.updateMany(
-        { _id: { $in: existingOrders.map(i => i.labOrderId) } },
+        { _id: { $in: existingOrders } },
         { 
           isPaid: true, 
           invoiceId: updated._id 
         }
       );
+    }
+
+    // --- APPOINTMENT LOGIC: Sync appointment isPaid status ---
+    if (updated.appointment) {
+      const { Appointment } = await import("@/models/clinical.model");
+      await Appointment.findByIdAndUpdate(updated.appointment, { isPaid: true });
     }
   }
 

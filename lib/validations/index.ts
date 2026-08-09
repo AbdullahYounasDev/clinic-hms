@@ -553,6 +553,8 @@ export const updateSettingsSchema = z.object({
   taxId: z.string().optional(),
   currency: z.string().optional(),
   timezone: z.string().refine((val) => !val || isValidIANATimezone(val), { message: "Invalid IANA timezone identifier" }).optional(),
+  dateFormat: z.enum(["DD/MM/YYYY", "MM/DD/YYYY", "YYYY/MM/DD"]).optional(),
+  timeFormat: z.enum(["12-hour", "24-hour"]).optional(),
   invoicePrefix: z.string().optional(),
   appointmentDuration: z.number().min(5).max(120).optional(),
   workingDays: z.array(workingDaySchema).optional(),

@@ -35,9 +35,18 @@ export function OPDClient() {
   const [createError, setCreateError] = useState("");
   const [activeTab, setActiveTab] = useState<"emr" | "rx">("emr");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const [symptomInput, setSymptomInput] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const isSA = session?.user.isSuperAdmin;
   const perms = session?.user.permissions || [];
@@ -45,8 +54,8 @@ export function OPDClient() {
   const canDelete = isSA || perms.includes("emr:delete");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["emr-records", page],
-    queryFn: () => axios.get("/api/emr", { params: { page, limit: 20 } }).then(r => r.data),
+    queryKey: ["emr-records", page, debouncedSearch],
+    queryFn: () => axios.get("/api/emr", { params: { page, limit: 20, search: debouncedSearch } }).then(r => r.data),
   });
 
   const { data: patientsData } = useQuery({
@@ -140,6 +149,33 @@ export function OPDClient() {
             <Plus className="w-3.5 h-3.5" /> New Visit Record
           </Button>
         )}
+      </div>
+
+      {/* Search Bar */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by patient name or ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-8 py-2 text-xs rounded-lg border border-gray-300 bg-white placeholder:text-gray-400 text-gray-700 focus:outline-none focus:border-teal-600"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setDebouncedSearch("");
+                setPage(1);
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Desktop Table */}

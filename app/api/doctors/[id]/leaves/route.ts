@@ -49,22 +49,18 @@ export async function POST(req: NextRequest, { params }: Params) {
     return apiError("Date is required", 422);
   }
 
-  let startDate: Date;
-  let endDate: Date;
+  const { getClinicTimezone, getClinicDayBounds, toClinicDateString } = await import("@/lib/time-utils");
+  const clinicTz = await getClinicTimezone();
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(sDateStr)) {
-    const [sy, sm, sd] = sDateStr.split("-").map(Number);
-    startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
-  } else {
-    startDate = new Date(sDateStr);
+  const startDateClean = toClinicDateString(sDateStr, clinicTz);
+  const endDateClean = toClinicDateString(eDateStr, clinicTz);
+
+  if (!startDateClean || !endDateClean) {
+    return apiError("Invalid date format", 422);
   }
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(eDateStr)) {
-    const [ey, em, ed] = eDateStr.split("-").map(Number);
-    endDate = new Date(ey, em - 1, ed, 23, 59, 59, 999);
-  } else {
-    endDate = new Date(eDateStr);
-  }
+  const startDate = getClinicDayBounds(startDateClean, clinicTz).start;
+  const endDate = getClinicDayBounds(endDateClean, clinicTz).end;
 
   if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
     return apiError("Invalid date format", 422);

@@ -243,9 +243,8 @@ const LabTestSchema = new Schema<ILabTest>(
 
 LabTestSchema.pre("save", async function () {
   if (!this.labTestId) {
-    const last = await mongoose.models.LabTest.findOne({}).sort({ _id: -1 }).lean();
-    const lastNum = last?.labTestId ? parseInt(last.labTestId.replace("LAB-", "")) : 0;
-    this.labTestId = `LAB-${String(lastNum + 1).padStart(6, "0")}`;
+    const { getNextLabTestId } = await import("./counter.model");
+    this.labTestId = await getNextLabTestId();
   }
 });
 
@@ -289,6 +288,8 @@ export interface IInvoice extends Document {
   dueDate?: Date;
   notes?: string;
   createdBy: mongoose.Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const InvoiceSchema = new Schema<IInvoice>(
@@ -358,20 +359,12 @@ const InvoiceSchema = new Schema<IInvoice>(
 
 InvoiceSchema.pre("save", async function () {
   if (!this.invoiceNumber) {
-    const count = await mongoose.models.Invoice.countDocuments({ invoiceType: this.invoiceType });
-    const prefixes: Record<string, string> = {
-      opd: "INV-OPD",
-      pharmacy_sale: "INV-PHARM-SALE",
-      lab: "INV-LAB",
-      procedure: "INV-PROC",
-      other: "INV-OTHER",
-    };
-    const prefix = prefixes[this.invoiceType] || "INV";
-    this.invoiceNumber = `${prefix}-${String(count + 1).padStart(6, "0")}`;
+    const { getNextInvoiceNumber } = await import("./counter.model");
+    this.invoiceNumber = await getNextInvoiceNumber(this.invoiceType);
   }
-  this.balanceDue = this.total - this.paidAmount;
-  if (this.balanceDue === 0 && this.total > 0) this.status = "paid";
-  else if (this.paidAmount > 0 && this.balanceDue > 0) this.status = "partial";
+  this.balanceDue = this.total - (this.paidAmount || 0);
+  if (this.balanceDue <= 0 && this.total > 0) this.status = "paid";
+  else if ((this.paidAmount || 0) > 0 && this.balanceDue > 0) this.status = "partial";
 });
 
 // ─── EXPENSE MODEL ────────────────────────────────────────
@@ -390,6 +383,8 @@ export interface IExpense extends Document {
   status: "pending" | "approved" | "rejected" | "archived";
   approvedBy?: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const ExpenseSchema = new Schema<IExpense>(
@@ -497,6 +492,7 @@ export interface ISettings extends Document {
   currency: string;
   timezone: string;
   dateFormat: string;
+  timeFormat?: string;
   invoicePrefix: string;
   appointmentDuration: number;
   workingDays?: IWorkingDay[];
@@ -533,7 +529,8 @@ const SettingsSchema = new Schema<ISettings>(
     taxId: String,
     currency: { type: String, default: "PKR" },
     timezone: { type: String, default: "Asia/Karachi" },
-    dateFormat: { type: String, default: "DD/MM/YYYY" },
+    dateFormat: { type: String, enum: ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY/MM/DD"], default: "DD/MM/YYYY" },
+    timeFormat: { type: String, enum: ["12-hour", "24-hour"], default: "12-hour" },
     invoicePrefix: { type: String, default: "INV" },
     appointmentDuration: { type: Number, default: 30 },
     workingDays: [
@@ -625,8 +622,8 @@ const ReportSchema = new Schema<IReport>(
 
 ReportSchema.pre("save", async function () {
   if (!this.reportId) {
-    const count = await mongoose.models.Report.countDocuments();
-    this.reportId = `RPT-${String(count + 1).padStart(6, "0")}`;
+    const { getNextReportId } = await import("./counter.model");
+    this.reportId = await getNextReportId();
   }
 });
 

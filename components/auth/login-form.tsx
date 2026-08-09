@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import Image from "next/image";
 import Link from "next/link";
 import { useClinicSettings } from "@/components/providers/clinic-provider";
+import { ThemeToggle, PoweredByNyron } from "@/components/ui";
 
 const rotatingTexts = [
   "manage patients",
@@ -31,6 +32,19 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const [isTextVisible, setIsTextVisible] = useState(true);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const dark = localStorage.getItem("theme") === "dark" || document.documentElement.classList.contains("dark");
+    setIsDark(dark);
+  }, []);
+
+  const toggleDark = () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+  };
 
   // Rotating text animation
   useEffect(() => {
@@ -175,7 +189,7 @@ export function LoginForm() {
         {/* Diagonal Cut */}
         <div className="absolute right-0 top-0 bottom-0 w-24 lg:w-32 z-20">
           <div
-            className="absolute inset-0 bg-linear-to-br from-gray-50 to-white"
+            className="absolute inset-0 bg-gray-50 dark:bg-gray-950 lg:bg-white dark:lg:bg-gray-900 transition-colors"
             style={{
               clipPath: 'polygon(100% 0, 0 0, 100% 100%)'
             }}
@@ -184,7 +198,12 @@ export function LoginForm() {
       </div>
 
       {/* Right Section - Login Form */}
-      <div className="w-full lg:w-[45%] flex items-center justify-center p-4 sm:p-6 lg:p-8 min-h-screen relative bg-gray-50 lg:bg-white">
+      <div className="w-full lg:w-[45%] flex items-center justify-center p-4 sm:p-6 lg:p-8 min-h-screen relative bg-gray-50 dark:bg-gray-950 lg:bg-white dark:lg:bg-gray-900 transition-colors">
+        {/* Top Theme Toggle */}
+        <div className="absolute top-4 right-4 z-30">
+          <ThemeToggle isDark={isDark} onToggle={toggleDark} />
+        </div>
+
         <div className="relative w-full max-w-md">
           {/* Mobile/Tablet Hero Banner */}
           <div className="lg:hidden relative w-full h-56 sm:h-64 rounded-3xl overflow-hidden shadow-lg mb-6">
@@ -271,13 +290,13 @@ export function LoginForm() {
           </div>
 
           {/* Form Card - Mobile/Tablet */}
-          <div className="lg:bg-transparent bg-white rounded-2xl p-6 sm:p-8 shadow-xl lg:shadow-none border lg:border-0 border-gray-100">
+          <div className="lg:bg-transparent bg-white dark:bg-gray-900 rounded-2xl p-6 sm:p-8 shadow-xl lg:shadow-none border lg:border-0 border-gray-200 dark:border-gray-800">
             {/* Form Header */}
             <div className="mb-6">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-                Sign in
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                Staff Sign in
               </h1>
-              <p className="text-gray-600 text-sm sm:text-base">
+              <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">
                 Enter your credentials to access your account
               </p>
             </div>
@@ -375,12 +394,11 @@ export function LoginForm() {
               Patient?{" "}
               <Link href="/patient/login" className="text-teal-600 font-medium">Patient portal login</Link>
             </p>
-          </div>
 
-          {/* Footer - Mobile/Tablet */}
-          <p className="text-center text-gray-400 text-xs mt-6">
-            &copy; {new Date().getFullYear()} {clinicName || 'ClinicHMS'}. All rights reserved.
-          </p>
+            <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <PoweredByNyron />
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import { LogOut, ChevronDown, UserCircle, Menu, Hospital, Sun, Moon, LifeBuoy } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ui";
 import { NotificationsPanel } from "./notifications-panel";
 import { DeveloperReportModal } from "./developer-report-modal";
 import { useSidebar } from "../sidebar-context";
@@ -16,10 +17,7 @@ interface HeaderProps { session: Session }
 export function Header({ session }: HeaderProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("theme") === "dark";
-  });
+  const [isDark, setIsDark] = useState(false);
   const { toggleMobile } = useSidebar();
   const { clinicName, logoUrl } = useClinicSettings();
   const canSendDeveloperReport =
@@ -27,10 +25,9 @@ export function Header({ session }: HeaderProps) {
     (session.user.permissions || []).includes("developer_reports:create");
 
   useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    }
-  }, [isDark]);
+    const dark = localStorage.getItem("theme") === "dark" || document.documentElement.classList.contains("dark");
+    setIsDark(dark);
+  }, []);
 
   const toggleDark = () => {
     const next = !isDark;
@@ -40,17 +37,17 @@ export function Header({ session }: HeaderProps) {
   };
 
   return (
-    <header className="min-h-14 bg-white border-b border-gray-200 px-4 sm:px-6 py-2 shrink-0 z-10">
+    <header className="min-h-14 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 py-2 shrink-0 z-10 transition-colors">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <button
           onClick={toggleMobile}
-          className="md:hidden p-2 -ml-2 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-50 cursor-pointer shrink-0"
+          className="md:hidden p-2 -ml-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer shrink-0 transition-colors"
           aria-label="Open sidebar"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-2 min-w-0 flex-1 md:hidden">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 md:hidden">
           {logoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -69,53 +66,47 @@ export function Header({ session }: HeaderProps) {
               <Hospital className="w-4 h-4 text-white" />
             </div>
           )}
-          <span className="font-semibold text-sm text-gray-900 line-clamp-2 leading-snug break-words">
+          <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2 leading-snug break-words">
             {clinicName || "ClinicHMS"}
           </span>
         </div>
 
         <div className="hidden md:block flex-1 min-w-0" />
 
-        <div className="flex items-center gap-1 shrink-0 ml-auto w-full justify-end md:w-auto">
-          <button
-            onClick={toggleDark}
-            className="p-2 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-50 cursor-pointer shrink-0"
-            aria-label="Toggle dark mode"
-          >
-            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
+        <div className="flex items-center gap-2 shrink-0 ml-auto w-full justify-end md:w-auto">
+          <ThemeToggle isDark={isDark} onToggle={toggleDark} />
 
           <NotificationsPanel />
 
           <div className="relative shrink-0">
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer shrink-0"
+              className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer shrink-0 transition-colors"
             >
-              <div className="w-7 h-7 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-semibold shrink-0">
+              <div className="w-7 h-7 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-semibold shrink-0 shadow-xs">
                 {session.user.fullName?.charAt(0) || "U"}
               </div>
               <div className="hidden sm:block text-left min-w-0">
-                <p className="text-xs font-medium text-gray-700 leading-tight truncate max-w-[8rem]">{session.user.fullName}</p>
-                <p className="text-xs text-gray-500 leading-tight truncate max-w-[8rem]">{session.user.role}</p>
+                <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 leading-tight truncate max-w-[8rem]">{session.user.fullName}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-tight truncate max-w-[8rem]">{session.user.role}</p>
               </div>
-              <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0", userMenuOpen && "rotate-180")} />
+              <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200", userMenuOpen && "rotate-180")} />
             </button>
 
             {userMenuOpen && (
               <>
                 <div className="fixed inset-0 z-10 cursor-pointer" onClick={() => setUserMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl border border-gray-200 shadow-lg z-20 py-1 overflow-hidden">
-                  <div className="px-3 py-2 border-b border-gray-100">
-                    <p className="text-xs font-medium text-gray-800 truncate">{session.user.fullName}</p>
-                    <p className="text-xs text-gray-500 truncate">{session.user.email}</p>
+                <div className="absolute right-0 top-full mt-1.5 w-56 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl z-20 py-1.5 overflow-hidden transition-all">
+                  <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800">
+                    <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{session.user.fullName}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{session.user.email}</p>
                   </div>
                   <Link
                     href="/profile"
-                    className="flex items-center gap-2 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-800 cursor-pointer"
+                    className="flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 cursor-pointer transition-colors"
                     onClick={() => setUserMenuOpen(false)}
                   >
-                    <UserCircle className="w-4 h-4" /> Profile
+                    <UserCircle className="w-4 h-4 text-gray-400" /> Profile
                   </Link>
                   {canSendDeveloperReport && (
                     <button
@@ -124,15 +115,15 @@ export function Header({ session }: HeaderProps) {
                         setUserMenuOpen(false);
                         setReportOpen(true);
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-800 cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 cursor-pointer transition-colors"
                     >
-                      <LifeBuoy className="w-4 h-4" /> Report to Developers
+                      <LifeBuoy className="w-4 h-4 text-gray-400" /> Report to Developers
                     </button>
                   )}
-                  <div className="border-t border-gray-100 mt-1 pt-1">
+                  <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-1">
                     <button
                       onClick={() => signOut({ callbackUrl: "/login" })}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer transition-colors"
                     >
                       <LogOut className="w-4 h-4" /> Sign out
                     </button>

@@ -13,17 +13,17 @@ export const revalidate = 0;
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
-import { Poppins } from "next/font/google";
+import { Sora } from "next/font/google";
 import { Toaster } from "sonner";
 import { SidebarProvider } from "@/components/sidebar-context";
 import { ThemeProvider } from "next-themes";
 import { NEXT_PUBLIC_CLINIC_NAME, NEXT_PUBLIC_CLINIC_TAGLINE, NEXT_PUBLIC_LOGO_URL, NEXT_PUBLIC_THEME_COLOR } from "@/constants/ClinicDetails";
 import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
 
-const poppins = Poppins({
+const sora = Sora({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700'],
-  variable: '--font-poppins',
+  variable: '--font-sora',
   display: 'swap',
 })
 
@@ -133,7 +133,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   })) as import("@/components/providers/clinic-provider").ClinicSettings;
 
   return (
-    <html lang="en" className={poppins.variable}>
+    <html lang="en" className={sora.variable} suppressHydrationWarning>
       <head>
         {activeLogo && <link rel="icon" href={activeLogo} />}
         {activeLogo && <link rel="shortcut icon" href={activeLogo} />}

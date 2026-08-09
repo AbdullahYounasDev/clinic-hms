@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { Send, Trash2, X, Image as ImageIcon, Sparkles, User } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button, Alert } from "@/components/ui";
 import { useSession } from "next-auth/react";
 import { formatAIResponse } from "@/lib/ai/ai-utils";
 import { toast } from "sonner";
@@ -22,8 +22,12 @@ export function AIChatClient() {
     const storageKey = `ai_chat_${userId}`;
     const userName = session?.user?.fullName || "User";
 
+    const isSuperAdmin = session?.user?.isSuperAdmin;
+    const permissions = session?.user?.permissions || [];
+    const canAccessAI = isSuperAdmin || permissions.includes("ai_assistant:view");
+
     const [messages, setMessages] = useState<Message[]>(() => {
-        if (typeof window === "undefined") return [];
+        if (typeof window === "undefined" || !userId || userId === "anonymous") return [];
         try {
             const saved = localStorage.getItem(storageKey);
             return saved ? JSON.parse(saved) : [];
@@ -38,8 +42,18 @@ export function AIChatClient() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (messages.length > 0) localStorage.setItem(storageKey, JSON.stringify(messages));
-    }, [messages, storageKey]);
+        if (typeof window === "undefined" || !userId || userId === "anonymous") return;
+        try {
+            if (messages.length > 0) {
+                const capped = messages.slice(-50);
+                localStorage.setItem(storageKey, JSON.stringify(capped));
+            } else {
+                localStorage.removeItem(storageKey);
+            }
+        } catch {
+            // Safe fallback for quota or access errors
+        }
+    }, [messages, storageKey, userId]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -51,14 +65,20 @@ export function AIChatClient() {
         onSuccess: (data) => {
             setMessages(prev => [...prev, { role: "assistant", content: data.data.response }]);
         },
-        onError: () => {
-            setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I'm having trouble responding. Please try again." }]);
-            toast.error("Failed to get response. Please try again.");
+        onError: (error: any) => {
+            const status = error?.response?.status;
+            const msg = status === 403
+                ? "Forbidden — You do not have permission to access the AI Assistant."
+                : status === 401
+                ? "Unauthorized — Session expired. Please sign in again."
+                : "Sorry, I'm having trouble responding. Please try again.";
+            setMessages(prev => [...prev, { role: "assistant", content: msg }]);
+            toast.error(msg);
         },
     });
 
     const handleSend = () => {
-        if (!input.trim() && !imageBase64) return;
+        if (chatMutation.isPending || (!input.trim() && !imageBase64)) return;
         const userMessage: Message = {
             role: "user",
             content: input.trim() || "Analyze this image",
@@ -109,6 +129,14 @@ export function AIChatClient() {
         setMessages([]);
         localStorage.removeItem(storageKey);
     };
+
+    if (!canAccessAI) {
+        return (
+            <div className="p-4">
+                <Alert type="error">Forbidden — You do not have permission to access the AI Assistant.</Alert>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-4 h-[calc(100vh-110px)] flex flex-col">
@@ -206,7 +234,8 @@ export function AIChatClient() {
             <div className="flex items-end gap-2 bg-white border border-gray-300 rounded-lg p-2">
                 <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-1.5 text-gray-400 rounded cursor-pointer"
+                    disabled={chatMutation.isPending}
+                    className="p-1.5 text-gray-400 rounded cursor-pointer disabled:opacity-50"
                 >
                     <ImageIcon className="w-4 h-4" />
                 </button>
@@ -221,13 +250,14 @@ export function AIChatClient() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Type your message..."
+                    disabled={chatMutation.isPending}
+                    placeholder={chatMutation.isPending ? "Waiting for AI response..." : "Type your message..."}
                     rows={1}
-                    className="flex-1 resize-none outline-none text-xs py-1.5 max-h-32 text-gray-700 placeholder:text-gray-400"
+                    className="flex-1 resize-none outline-none text-xs py-1.5 max-h-32 text-gray-700 placeholder:text-gray-400 disabled:opacity-50"
                 />
                 <button
                     onClick={handleSend}
-                    disabled={!input.trim() && !imageBase64}
+                    disabled={chatMutation.isPending || (!input.trim() && !imageBase64)}
                     className="p-1.5 bg-teal-600 text-white rounded-lg disabled:opacity-50 cursor-pointer"
                 >
                     <Send className="w-4 h-4" />

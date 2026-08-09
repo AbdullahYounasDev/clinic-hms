@@ -4,11 +4,13 @@
 import { useRouter } from "next/navigation";
 import { Card, Table, Th, Td, StatusBadge, Button, EmptyState } from "@/components/ui";
 import { formatDate, formatCurrency } from "@/lib/utils";
+import { useClinicSettings } from "@/components/providers/clinic-provider";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 
 export function AppointmentsTab({ patientId }: { patientId: string }) {
     const router = useRouter();
+    const { formatTime } = useClinicSettings();
 
     const { data } = useQuery({
         queryKey: ["patient-appointments", patientId],
@@ -52,7 +54,7 @@ export function AppointmentsTab({ patientId }: { patientId: string }) {
                                     </Td>
                                     <Td className="text-gray-600">Dr. {a.doctor?.user?.firstName} {a.doctor?.user?.lastName}</Td>
                                     <Td className="text-gray-600">{formatDate(a.scheduledDate)}</Td>
-                                    <Td className="text-gray-600">{a.scheduledTime}</Td>
+                                    <Td className="text-gray-600">{formatTime(a.scheduledTime)}</Td>
                                     <Td className="capitalize text-gray-600">{a.type?.replace(/_/g, " ")}</Td>
                                     <Td><StatusBadge status={a.status} /></Td>
                                     <Td className="text-gray-600">{formatCurrency(a.consultationFee)}</Td>
@@ -90,7 +92,7 @@ export function AppointmentsTab({ patientId }: { patientId: string }) {
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5">
                                     <span className="text-xs text-gray-400">
-                                        {formatDate(a.scheduledDate)} • {a.scheduledTime}
+                                        {formatDate(a.scheduledDate)} • {formatTime(a.scheduledTime)}
                                     </span>
                                     <span className="text-xs text-gray-500">{formatCurrency(a.consultationFee)}</span>
                                 </div>

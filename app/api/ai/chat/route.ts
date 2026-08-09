@@ -2,6 +2,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth.config";
 import { apiSuccess, apiError } from "@/lib/utils";
+import { hasPermission } from "@/lib/auth/audit";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NEXT_PUBLIC_CLINIC_NAME } from "@/constants/ClinicDetails";
 
@@ -15,6 +16,9 @@ interface ChatMessage {
 export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session) return apiError("Unauthorized", 401);
+    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "ai_assistant", "view")) {
+        return apiError("Forbidden — AI Assistant permission required", 403);
+    }
 
     try {
         const body = await req.json();

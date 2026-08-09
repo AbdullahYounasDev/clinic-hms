@@ -33,10 +33,12 @@ const SPACING = {
   cellPadding: 4,
 };
 
+import { formatDate as globalFormatDate } from "@/lib/utils";
+
 // ─── Shared Helpers ───────────────────────────────────────
 const formatDate = (dateStr?: string) => {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  return globalFormatDate(dateStr);
 };
 
 const calculateAge = (dob?: string): string => {
@@ -118,6 +120,9 @@ export interface PrintClinicDetails {
   phone?: string;
   email?: string;
   logoUrl?: string;
+  timezone?: string;
+  dateFormat?: any;
+  timeFormat?: any;
 }
 
 function resolveClinic(details?: PrintClinicDetails, fallbackLogo?: string) {
