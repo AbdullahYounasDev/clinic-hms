@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
-import { Search, Plus, Filter, ChevronDown, X, Archive, Eye, EyeOff, AlertTriangle, ShieldCheck, RefreshCw, RotateCcw } from "lucide-react";
+import { Search, Plus, Filter, ChevronDown, X, Trash2, Eye, EyeOff, AlertTriangle, ShieldCheck, RefreshCw, RotateCcw } from "lucide-react";
 import {
   Card, Table, Th, Td, StatusBadge,
   Button, Modal, FormField, Input, Select, EmptyState,
@@ -217,9 +217,9 @@ export function PatientsClient() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["patients"] });
       setDeleteConfirm({ open: false, id: "", label: "" });
-      toast.success("Patient record archived!");
+      toast.success("Patient record deleted!");
     },
-    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to archive"),
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
   });
 
   const onFormSubmit = (d: CreatePatientInput) => {
@@ -410,7 +410,7 @@ export function PatientsClient() {
                       </Link>
                       {canDelete && p.status === "active" && (
                         <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: p._id, label: `${p.patientId} (${p.firstName} ${p.lastName})` })}>
-                          <Archive className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       )}
                     </div>
@@ -472,7 +472,7 @@ export function PatientsClient() {
                 </Link>
                 {canDelete && p.status === "active" && (
                   <Button size="sm" variant="danger" onClick={() => setDeleteConfirm({ open: true, id: p._id, label: `${p.patientId} (${p.firstName} ${p.lastName})` })}>
-                    <Archive className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 )}
               </div>
@@ -711,19 +711,19 @@ export function PatientsClient() {
         </form>
       </Modal>
 
-      {/* Archive Patient Modal */}
-      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Archive Patient Record" size="sm">
+      {/* Delete Patient Modal */}
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Patient Record" size="sm">
         <div className="space-y-4 mt-2">
-          <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-            <Archive className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-semibold text-amber-900">Archive this patient?</p>
-              <p className="text-xs text-amber-700 mt-0.5">This will archive <strong>{deleteConfirm.label}</strong>. Historical medical records, appointments, and billing invoices remain preserved.</p>
+              <p className="text-xs font-semibold text-red-800">Delete patient?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will delete <strong>{deleteConfirm.label}</strong>. Historical medical records, appointments, and billing invoices remain preserved.</p>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
             <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
-            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Archive Patient</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Patient</Button>
           </div>
         </div>
       </Modal>

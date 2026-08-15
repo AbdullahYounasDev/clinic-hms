@@ -888,33 +888,33 @@ export function SettingsClient() {
               ) : (
                 <div className="divide-y divide-gray-100">
                   {departments.map((d) => (
-                    <div key={d._id} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 gap-2">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-xs font-medium text-gray-900">{d.name}</span>
-                        {d.description && <span className="text-xs text-gray-400 block sm:inline sm:ml-2">— {d.description}</span>}
+                    <div key={d._id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 sm:py-2.5 gap-2">
+                      <div className="min-w-0 flex-1 space-y-1 sm:space-y-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-semibold sm:font-medium text-gray-900">{d.name}</span>
+                          <Badge variant="outline">{d.code}</Badge>
+                          <Badge variant={d.isActive ? "success" : "default"}>{d.isActive ? "Active" : "Inactive"}</Badge>
+                        </div>
+                        {d.description && <p className="text-xs text-gray-500 sm:text-gray-400 sm:mt-0.5">{d.description}</p>}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant="outline">{d.code}</Badge>
-                        <Badge variant={d.isActive ? "success" : "default"}>{d.isActive ? "Active" : "Inactive"}</Badge>
-                        {canEdit && d.isActive && (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => setEditDept({ id: d._id, name: d.name, code: d.code, description: d.description || "" })}
-                            >
-                              <Edit2 className="w-3.5 h-3.5 text-gray-600" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              onClick={() => setDeleteConfirm({ open: true, id: d._id, label: `${d.name} (${d.code})` })}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
+                      {canEdit && d.isActive && (
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setEditDept({ id: d._id, name: d.name, code: d.code, description: d.description || "" })}
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-gray-600" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => setDeleteConfirm({ open: true, id: d._id, label: `${d.name} (${d.code})` })}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -927,25 +927,27 @@ export function SettingsClient() {
               <CardBody className="p-4 sm:p-5 space-y-3">
                 <h3 className="text-xs font-semibold text-gray-900">Add Department</h3>
                 {deptError && <Alert type="error">{deptError}</Alert>}
-                <div className="flex flex-col sm:flex-row gap-3 items-end">
-                  <div className="flex-1 w-full">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  <div className="sm:col-span-4">
                     <FormField label="Name">
                       <Input value={newDept.name} onChange={(e) => setNewDept((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Cardiology" />
                     </FormField>
                   </div>
-                  <div className="w-full sm:w-28">
+                  <div className="sm:col-span-2">
                     <FormField label="Code">
                       <Input value={newDept.code} onChange={(e) => setNewDept((p) => ({ ...p, code: e.target.value.toUpperCase() }))} placeholder="CARD" />
                     </FormField>
                   </div>
-                  <div className="flex-1 w-full">
+                  <div className="sm:col-span-4">
                     <FormField label="Description">
                       <Input value={newDept.description} onChange={(e) => setNewDept((p) => ({ ...p, description: e.target.value }))} placeholder="Optional" />
                     </FormField>
                   </div>
-                  <Button onClick={() => addDeptMutation.mutate(newDept)} loading={addDeptMutation.isPending} disabled={!newDept.name || !newDept.code} className="w-full sm:w-auto">
-                    <Plus className="w-3.5 h-3.5" /> Add
-                  </Button>
+                  <div className="sm:col-span-2">
+                    <Button onClick={() => addDeptMutation.mutate(newDept)} loading={addDeptMutation.isPending} disabled={!newDept.name || !newDept.code} className="w-full">
+                      <Plus className="w-3.5 h-3.5" /> Add
+                    </Button>
+                  </div>
                 </div>
               </CardBody>
             </Card>

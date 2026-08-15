@@ -178,18 +178,18 @@ export function PatientDetailClient({ patientId }: { patientId: string }) {
         error={editError}
       />
 
-      <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Archive Patient Record" size="sm">
+      <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Delete Patient Record" size="sm">
         <div className="space-y-4 mt-2">
-          <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-            <Trash2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-semibold text-amber-900">Archive this patient?</p>
-              <p className="text-xs text-amber-700 mt-0.5">This will archive <strong>{p.patientId}</strong> ({p.firstName} {p.lastName}). Historical medical and financial records will remain preserved.</p>
+              <p className="text-xs font-semibold text-red-800">Delete patient?</p>
+              <p className="text-xs text-red-600 mt-0.5">This will delete <strong>{p.patientId}</strong> ({p.firstName} {p.lastName}). Historical medical and financial records will remain preserved.</p>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
             <Button variant="secondary" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>Archive Patient</Button>
+            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>Delete Patient</Button>
           </div>
         </div>
       </Modal>

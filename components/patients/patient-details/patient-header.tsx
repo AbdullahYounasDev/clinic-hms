@@ -1,6 +1,6 @@
 // components/patients/patient-details/patient-header.tsx
 import { Card, CardBody, StatusBadge, Badge, Button } from "@/components/ui";
-import { Phone, Mail, MapPin, Edit2, ArrowLeft, Archive, CreditCard } from "lucide-react";
+import { Phone, Mail, MapPin, Edit2, ArrowLeft, Trash2, CreditCard } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { formatCNIC } from "@/lib/utils/cnic-utils";
 import { useRouter } from "next/navigation";
@@ -42,7 +42,7 @@ export function PatientHeader({
           </Button>
           {canDelete && onDelete && p.status === "active" && (
             <Button variant="danger" size="sm" onClick={onDelete}>
-              <Archive className="w-3.5 h-3.5" /> Archive
+              <Trash2 className="w-3.5 h-3.5" /> Delete
             </Button>
           )}
         </div>

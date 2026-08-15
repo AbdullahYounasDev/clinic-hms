@@ -22,8 +22,9 @@ export async function GET(req: NextRequest) {
 
   const filter: Record<string, unknown> = {};
 
-  // Non-admin users only see tests they requested unless filtering by patient (e.g., for billing)
-  if (!session.user.isSuperAdmin && !patientId) {
+  // Non-admin / non-demo users only see tests they requested unless filtering by patient (e.g., for billing)
+  const isSuperAdminOrDemo = session.user.isSuperAdmin || session.user.roleSlug === "demo" || session.user.role?.toLowerCase() === "demo" || session.user.email?.toLowerCase().includes("demo");
+  if (!isSuperAdminOrDemo && !patientId) {
     filter.requestedBy = session.user.id;
   }
 
