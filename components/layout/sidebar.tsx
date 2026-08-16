@@ -36,7 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Test Catalog", href: "/labcatalog", icon: FoldersIcon, permission: "lab:view", category: "Lab & Pharmacy" },
   { label: "Laboratory", href: "/lab", icon: FlaskConical, permission: "lab:view", category: "Lab & Pharmacy" },
   { label: "Pharmacy", href: "/pharmacy", icon: Pill, permission: "pharmacy:view", category: "Lab & Pharmacy" },
-  { label: "Suppliers", href: "/supplier", icon: Building2, permission: "pharmacy:view", category: "Lab & Pharmacy" },
+  { label: "Suppliers", href: "/supplier", icon: Building2, permission: "supplier:view", category: "Lab & Pharmacy" },
   { label: "Staff", href: "/staff", icon: Users, permission: "staff:view", category: "Management" },
   { label: "Billing", href: "/billing", icon: Receipt, permission: "billing:view", category: "Finance" },
   { label: "Expenses", href: "/expenses", icon: TrendingDown, permission: "expenses:view", category: "Finance" },

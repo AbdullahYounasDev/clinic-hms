@@ -10,7 +10,7 @@ import { auditLog, hasPermission } from "@/lib/auth/audit";
 export async function GET(req: NextRequest) {
     const session = await auth();
     if (!session) return apiError("Unauthorized", 401);
-    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "pharmacy", "view")) return apiError("Forbidden", 403);
+    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "supplier", "view")) return apiError("Forbidden", 403);
     await connectDB();
     const sp = req.nextUrl.searchParams;
     const { page, limit, skip } = getPaginationParams(sp);
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session) return apiError("Unauthorized", 401);
-    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "pharmacy", "create")) return apiError("Forbidden", 403);
+    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "supplier", "create")) return apiError("Forbidden", 403);
     const body = await req.json();
     const parsed = createSupplierSchema.safeParse(body);
     if (!parsed.success) return apiError(parsed.error.issues[0].message, 422);

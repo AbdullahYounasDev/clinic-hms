@@ -45,8 +45,8 @@ export function SupplierDetailClient({ supplierId }: { supplierId: string }) {
 
     const isSA = session?.user?.isSuperAdmin;
     const perms = session?.user?.permissions || [];
-    const canUpdate = isSA || perms.includes("pharmacy:update");
-    const canDelete = isSA || perms.includes("pharmacy:delete");
+    const canUpdate = isSA || perms.includes("supplier:update");
+    const canDelete = isSA || perms.includes("supplier:delete");
 
     const { data, isLoading } = useQuery({
         queryKey: ["supplier", supplierId],

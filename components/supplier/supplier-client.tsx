@@ -44,8 +44,8 @@ export function SuppliersClient() {
 
     const isSA = session?.user.isSuperAdmin;
     const perms = session?.user.permissions || [];
-    const canCreate = isSA || perms.includes("pharmacy:create");
-    const canDelete = isSA || perms.includes("pharmacy:delete");
+    const canCreate = isSA || perms.includes("supplier:create");
+    const canDelete = isSA || perms.includes("supplier:delete");
 
     const activeFiltersCount = [typeFilter, isActiveFilter].filter(Boolean).length;
 

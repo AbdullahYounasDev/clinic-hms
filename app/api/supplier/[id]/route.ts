@@ -12,7 +12,7 @@ interface Params { params: Promise<{ id: string }> }
 export async function GET(_req: NextRequest, { params }: Params) {
     const session = await auth();
     if (!session) return apiError("Unauthorized", 401);
-    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "pharmacy", "view")) return apiError("Forbidden", 403);
+    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "supplier", "view")) return apiError("Forbidden", 403);
     await connectDB();
     const { id } = await params;
     const supplier = await Supplier.findById(id).lean();
@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PUT(req: NextRequest, { params }: Params) {
     const session = await auth();
     if (!session) return apiError("Unauthorized", 401);
-    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "pharmacy", "update")) return apiError("Forbidden", 403);
+    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "supplier", "update")) return apiError("Forbidden", 403);
     await connectDB();
     const { id } = await params;
     const body = await req.json();
@@ -70,7 +70,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 export async function DELETE(req: NextRequest, { params }: Params) {
     const session = await auth();
     if (!session) return apiError("Unauthorized", 401);
-    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "pharmacy", "delete")) return apiError("Forbidden", 403);
+    if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "supplier", "delete")) return apiError("Forbidden", 403);
     await connectDB();
     const { id } = await params;
     const supplier = await Supplier.findById(id);
