@@ -22,7 +22,7 @@ interface Role {
 
 const MODULE_ORDER = [
   "patients", "appointments", "doctors", "emr", "prescriptions", "opd",
-  "billing", "lab", "labcatalog", "pharmacy", "inventory", "expenses", "staff",
+  "billing", "lab", "labcatalog", "pharmacy", "inventory", "supplier", "expenses", "staff",
   "reports", "users", "roles", "settings", "audit_logs", "ai_assistant", "developer_reports",
 ];
 const ACTIONS = ["view", "create", "update", "delete", "approve", "export"];
@@ -155,7 +155,7 @@ export function RolesClient() {
             <p className="text-xs text-gray-500 mb-4">{viewRole.description}</p>
             <p className="text-xs font-semibold text-gray-500 uppercase mb-3">{viewRole.permissions.length} Permissions</p>
             <div className="space-y-3 max-h-80 overflow-y-auto">
-              {MODULE_ORDER.filter(m => viewRole.permissions.some(p => p.module === m)).map(module => {
+              {Array.from(new Set([...MODULE_ORDER, ...viewRole.permissions.map(p => p.module)])).filter(m => viewRole.permissions.some(p => p.module === m)).map(module => {
                 const modulePerms = viewRole.permissions.filter(p => p.module === module);
                 if (modulePerms.length === 0) return null;
                 return (
@@ -212,7 +212,7 @@ export function RolesClient() {
                     </tr>
                   </thead>
                   <tbody>
-                    {MODULE_ORDER.filter(m => permsByModule[m]?.length > 0).map((module, i) => {
+                    {Array.from(new Set([...MODULE_ORDER, ...Object.keys(permsByModule)])).filter(m => permsByModule[m]?.length > 0).map((module, i) => {
                       const modulePerms = permsByModule[module] || [];
                       const allSelected = modulePerms.length > 0 && modulePerms.every(p => selectedPerms.has(p._id));
                       return (
