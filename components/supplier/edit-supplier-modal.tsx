@@ -193,7 +193,7 @@ export function EditSupplierModal({ open, onClose, supplier, onUpdate, isPending
                     <Input {...register("notes")} placeholder="Additional notes..." />
                 </FormField>
                 <FormField label="Status">
-                    <Select {...register("isActive", { setValueAs: (v: string) => v === "true" })}>
+                    <Select {...register("isActive", { setValueAs: (v: any) => String(v) === "true" })}>
                         <option value="true">Active</option>
                         <option value="false">Inactive</option>
                     </Select>

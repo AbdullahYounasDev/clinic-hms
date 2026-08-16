@@ -127,7 +127,7 @@ export function EditInventoryModal({ open, onClose, item, onUpdate, isPending, e
                     </FormField>
                 </div>
                 <FormField label="Status">
-                    <Select {...register("isActive", { setValueAs: (v: string) => v === "true" })}>
+                    <Select {...register("isActive", { setValueAs: (v: any) => String(v) === "true" })}>
                         <option value="true">Active</option>
                         <option value="false">Inactive</option>
                     </Select>
