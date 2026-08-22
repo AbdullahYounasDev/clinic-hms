@@ -9,6 +9,7 @@ import { Plus, Search, DollarSign, FileText, Filter, ChevronDown, X, Trash2 } fr
 import {
   Card, Table, Th, Td, StatusBadge,
   Button, Select, EmptyState, Pagination, StatCard, Badge, Modal,
+  Input,
 } from "@/components/ui";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
@@ -35,6 +36,8 @@ export function BillingClient() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
@@ -46,13 +49,21 @@ export function BillingClient() {
 
   const canDeleteInvoice = (status: string) => status !== "paid" && status !== "cancelled" && status !== "refunded";
 
-  const activeFiltersCount = [statusFilter, typeFilter].filter(Boolean).length;
+  const activeFiltersCount = [statusFilter, typeFilter, from, to].filter(Boolean).length;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["invoices", page, statusFilter, typeFilter, search],
+    queryKey: ["invoices", page, statusFilter, typeFilter, search, from, to],
     queryFn: () =>
       axios.get("/api/invoice", {
-        params: { page, limit: 20, status: statusFilter || undefined, invoiceType: typeFilter || undefined, search: search || undefined }
+        params: {
+          page,
+          limit: 20,
+          status: statusFilter || undefined,
+          invoiceType: typeFilter || undefined,
+          search: search || undefined,
+          from: from || undefined,
+          to: to || undefined,
+        }
       }).then((r) => r.data),
   });
 
@@ -160,8 +171,24 @@ export function BillingClient() {
               </button>
             </span>
           )}
+          {from && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              From: {from}
+              <button onClick={() => { setFrom(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {to && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              To: {to}
+              <button onClick={() => { setTo(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
           <button
-            onClick={() => { setTypeFilter(""); setStatusFilter(""); setPage(1); }}
+            onClick={() => { setTypeFilter(""); setStatusFilter(""); setFrom(""); setTo(""); setPage(1); }}
             className="text-xs text-gray-400 cursor-pointer"
           >
             Clear all
@@ -172,7 +199,7 @@ export function BillingClient() {
       {/* Expanded Filters */}
       {filtersOpen && (
         <div className="bg-gray-50 rounded-lg border border-gray-300 p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Type</label>
               <Select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1); }}>
@@ -188,13 +215,20 @@ export function BillingClient() {
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
               <Select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
                 <option value="">All Statuses</option>
-                <option value="draft">Draft</option>
-                <option value="pending">Pending</option>
                 <option value="paid">Paid</option>
                 <option value="partial">Partial</option>
-                <option value="overdue">Overdue</option>
+                <option value="pending">Pending</option>
                 <option value="cancelled">Cancelled</option>
+                <option value="refunded">Refunded</option>
               </Select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">From Date</label>
+              <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">To Date</label>
+              <Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }} />
             </div>
           </div>
         </div>

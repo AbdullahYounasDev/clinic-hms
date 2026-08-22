@@ -15,10 +15,27 @@ export async function GET(req: NextRequest) {
   const search = sp.get("search") || "";
   const status = sp.get("status") || "";
   const department = sp.get("department") || "";
+  const from = sp.get("from") || "";
+  const to = sp.get("to") || "";
 
   const filter: Record<string, unknown> = {};
   applyUserStatusFilter(filter, status || null);
   if (department) filter.department = department;
+
+  if (from || to) {
+    const { getClinicDayBounds, getClinicTimezone } = await import("@/lib/time-utils");
+    const tz = await getClinicTimezone();
+    filter.createdAt = {};
+    if (from) {
+      const bounds = getClinicDayBounds(from, tz);
+      (filter.createdAt as Record<string, unknown>).$gte = bounds.start;
+    }
+    if (to) {
+      const bounds = getClinicDayBounds(to, tz);
+      (filter.createdAt as Record<string, unknown>).$lte = bounds.end;
+    }
+  }
+
   if (search) {
     filter.$or = [
       { firstName: { $regex: search, $options: "i" } },
@@ -39,5 +56,31 @@ export async function GET(req: NextRequest) {
     User.countDocuments(filter),
   ]);
 
-  return apiSuccess(staff, "Staff fetched", 200, buildPagination(total, page, limit));
+  // Enrich doctor users with their clinical department
+  const userIds = staff.map((u) => u._id);
+  const { Doctor } = await import("@/models/clinical.model");
+  const doctors = await Doctor.find({ user: { $in: userIds } })
+    .populate("department", "name code")
+    .lean();
+
+  const doctorDeptMap = new Map<string, string>();
+  for (const doc of doctors) {
+    if (!doc.user) continue;
+    const deptObj = doc.department as unknown as { name?: string; code?: string } | undefined;
+    const deptName =
+      deptObj?.name ||
+      (typeof doc.department === "string" ? doc.department : "") ||
+      doc.specialization ||
+      "";
+    if (deptName) {
+      doctorDeptMap.set(doc.user.toString(), deptName);
+    }
+  }
+
+  const enrichedStaff = staff.map((u) => ({
+    ...u,
+    department: doctorDeptMap.get(u._id.toString()) || u.department || "",
+  }));
+
+  return apiSuccess(enrichedStaff, "Staff fetched", 200, buildPagination(total, page, limit));
 }

@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useFieldArray } from "react-hook-form";
 import axios from "axios";
-import { Plus, Clipboard, Trash2, Search, X } from "lucide-react";
+import { Plus, Clipboard, Trash2, Search, X, Filter, ChevronDown } from "lucide-react";
 import { Card, Table, Th, Td, Button, Modal, FormField, Input, Select, EmptyState, Pagination, Badge, Alert } from "@/components/ui";
 import { formatDate, cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
@@ -48,19 +48,33 @@ export function OPDClient() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const isSA = session?.user.isSuperAdmin;
   const perms = session?.user.permissions || [];
   const canCreate = isSA || perms.includes("emr:create");
   const canDelete = isSA || perms.includes("emr:delete");
 
+  const activeFiltersCount = [from, to].filter(Boolean).length;
+
   const { data, isLoading } = useQuery({
-    queryKey: ["emr-records", page, debouncedSearch],
-    queryFn: () => axios.get("/api/emr", { params: { page, limit: 20, search: debouncedSearch } }).then(r => r.data),
+    queryKey: ["emr-records", page, debouncedSearch, from, to],
+    queryFn: () => axios.get("/api/emr", {
+      params: {
+        page,
+        limit: 20,
+        search: debouncedSearch || undefined,
+        from: from || undefined,
+        to: to || undefined,
+      }
+    }).then(r => r.data),
   });
 
   const { data: patientsData } = useQuery({
-    queryKey: ["patients-select-opd", search],
-    queryFn: () => axios.get("/api/publicPatients", { params: { limit: 50, search } }).then(r => r.data),
+    queryKey: ["patients-select-opd"],
+    queryFn: () => axios.get("/api/publicPatients", { params: { limit: 200 } }).then(r => r.data),
     enabled: createOpen && !urlPatientId,
   });
 
@@ -151,7 +165,7 @@ export function OPDClient() {
         )}
       </div>
 
-      {/* Search Bar */}
+      {/* Search + Filter Toggle */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -176,7 +190,70 @@ export function OPDClient() {
             </button>
           )}
         </div>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(!filtersOpen)}
+          className={cn(
+            "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border cursor-pointer shrink-0 transition-colors shadow-2xs",
+            filtersOpen || activeFiltersCount > 0
+              ? "bg-teal-600 text-white border-teal-600 hover:bg-teal-700"
+              : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+          )}
+        >
+          <Filter className="w-3.5 h-3.5" />
+          <span className="text-xs">Filters</span>
+          {activeFiltersCount > 0 && (
+            <span className="bg-white text-teal-600 text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+          <ChevronDown className={cn("w-3 h-3 transition-transform", filtersOpen && "rotate-180")} />
+        </button>
       </div>
+
+      {/* Active Filter Chips */}
+      {activeFiltersCount > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {from && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              From: {from}
+              <button onClick={() => { setFrom(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {to && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              To: {to}
+              <button onClick={() => { setTo(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          <button
+            onClick={() => { setFrom(""); setTo(""); setPage(1); }}
+            className="text-xs text-gray-400 cursor-pointer"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      {/* Expanded Filters */}
+      {filtersOpen && (
+        <div className="bg-gray-50 rounded-lg border border-gray-300 p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">From Visit Date</label>
+              <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">To Visit Date</label>
+              <Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Desktop Table */}
       <Card className="hidden md:block overflow-x-auto">
@@ -351,13 +428,7 @@ export function OPDClient() {
                 </FormField>
               ) : (
                 <FormField label="Patient" required error={errors.patient?.message}>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <Input placeholder="Type to search patients..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-                    </div>
-                  </div>
-                  <Select {...register("patient", { required: true })} className="mt-2">
+                  <Select {...register("patient", { required: true })}>
                     <option value="">Select patient</option>
                     {patients.map((p: any) => (
                       <option key={p._id} value={p._id}>{p.firstName} {p.lastName} ({p.patientId})</option>
@@ -470,13 +541,38 @@ export function OPDClient() {
               {rxFields.fields.map((f, i) => (
                 <div key={f.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <FormField label="Medicine" required><Input {...register(`prescriptions.${i}.medicine`)} /></FormField>
-                    <FormField label="Strength"><Input {...register(`prescriptions.${i}.strength`)} /></FormField>
-                    <FormField label="Dosage" required><Input {...register(`prescriptions.${i}.dosage`)} /></FormField>
+                    <FormField label="Medicine" required>
+                      <Input
+                        {...register(`prescriptions.${i}.medicine`)}
+                        placeholder="e.g. Paracetamol / Amoxicillin"
+                      />
+                    </FormField>
+                    <FormField label="Strength">
+                      <Input
+                        {...register(`prescriptions.${i}.strength`)}
+                        placeholder="e.g. 500mg / 10ml / 250mg"
+                      />
+                    </FormField>
+                    <FormField label="Dosage" required>
+                      <Input
+                        {...register(`prescriptions.${i}.dosage`)}
+                        placeholder="e.g. 1 Tablet / 2 Puffs / 5ml"
+                      />
+                    </FormField>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <FormField label="Frequency" required><Input {...register(`prescriptions.${i}.frequency`)} /></FormField>
-                    <FormField label="Duration"><Input {...register(`prescriptions.${i}.duration`)} /></FormField>
+                    <FormField label="Frequency" required>
+                      <Input
+                        {...register(`prescriptions.${i}.frequency`)}
+                        placeholder="e.g. 1-0-1 / Twice daily / Every 8 hrs"
+                      />
+                    </FormField>
+                    <FormField label="Duration">
+                      <Input
+                        {...register(`prescriptions.${i}.duration`)}
+                        placeholder="e.g. 5 days / 1 week / 1 month"
+                      />
+                    </FormField>
                     <FormField label="Route">
                       <Select {...register(`prescriptions.${i}.route`)}>
                         <option value="oral">Oral</option>
@@ -490,11 +586,22 @@ export function OPDClient() {
                     </FormField>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <FormField label="Quantity"><Input type="number" {...register(`prescriptions.${i}.quantity`, { valueAsNumber: true })} /></FormField>
-                    <FormField label="Instructions"><Input {...register(`prescriptions.${i}.instructions`)} /></FormField>
+                    <FormField label="Quantity">
+                      <Input
+                        type="number"
+                        {...register(`prescriptions.${i}.quantity`, { valueAsNumber: true })}
+                        placeholder="e.g. 10 / 30"
+                      />
+                    </FormField>
+                    <FormField label="Instructions">
+                      <Input
+                        {...register(`prescriptions.${i}.instructions`)}
+                        placeholder="e.g. Take after meals with a full glass of water"
+                      />
+                    </FormField>
                   </div>
                   <div className="flex justify-end">
-                    <button type="button" onClick={() => rxFields.remove(i)} className="text-xs text-gray-400 cursor-pointer">Remove</button>
+                    <button type="button" onClick={() => rxFields.remove(i)} className="text-xs text-gray-400 hover:text-red-500 cursor-pointer">Remove</button>
                   </div>
                 </div>
               ))}
@@ -509,7 +616,12 @@ export function OPDClient() {
                 </FormField>
                 <FormField label="Duration">
                   <div className="flex gap-2">
-                    <Input type="number" {...register("durationValue", { valueAsNumber: true })} className="w-20" />
+                    <Input
+                      type="number"
+                      {...register("durationValue", { valueAsNumber: true })}
+                      className="w-20"
+                      placeholder="5"
+                    />
                     <Select {...register("durationUnit")}>
                       <option value="days">Days</option>
                       <option value="weeks">Weeks</option>
@@ -518,7 +630,12 @@ export function OPDClient() {
                   </div>
                 </FormField>
               </div>
-              <FormField label="Prescription Notes"><Input {...register("prescriptionNotes")} /></FormField>
+              <FormField label="Prescription Notes">
+                <Input
+                  {...register("prescriptionNotes")}
+                  placeholder="e.g. Rest well, maintain hydration, and return if symptoms worsen"
+                />
+              </FormField>
             </div>
           )}
 

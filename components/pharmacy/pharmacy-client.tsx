@@ -9,6 +9,7 @@ import { Plus, Search, AlertTriangle, Filter, ChevronDown, X, Package, Layers, T
 import {
   Card, Table, Th, Td, Button,
   EmptyState, Pagination, Badge, StatCard, Select, Modal,
+  Input,
 } from "@/components/ui";
 import { formatDate, cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
@@ -35,6 +36,8 @@ export function PharmacyClient() {
   const [search, setSearch] = useState("");
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [category, setCategory] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -45,11 +48,11 @@ export function PharmacyClient() {
   const canCreate = isSA || perms.includes("pharmacy:create");
   const canDelete = isSA || perms.includes("pharmacy:delete");
 
-  const activeFiltersCount = [lowStockOnly, category].filter(Boolean).length;
+  const activeFiltersCount = [lowStockOnly, category, from, to].filter(Boolean).length;
   const [thirtyDaysFromNow] = useState(() => Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["medicines", page, search, lowStockOnly, category],
+    queryKey: ["medicines", page, search, lowStockOnly, category, from, to],
     queryFn: () =>
       axios.get("/api/pharmacy", {
         params: {
@@ -58,6 +61,8 @@ export function PharmacyClient() {
           search: search || undefined,
           lowStock: lowStockOnly || undefined,
           category: category || undefined,
+          from: from || undefined,
+          to: to || undefined,
         },
       }).then(r => r.data),
   });
@@ -176,8 +181,24 @@ export function PharmacyClient() {
               </button>
             </span>
           )}
+          {from && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              From: {from}
+              <button onClick={() => { setFrom(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {to && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              To: {to}
+              <button onClick={() => { setTo(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
           <button
-            onClick={() => { setLowStockOnly(false); setCategory(""); setPage(1); }}
+            onClick={() => { setLowStockOnly(false); setCategory(""); setFrom(""); setTo(""); setPage(1); }}
             className="text-xs text-gray-400 cursor-pointer"
           >
             Clear all
@@ -188,7 +209,7 @@ export function PharmacyClient() {
       {/* Expanded Filters */}
       {filtersOpen && (
         <div className="bg-gray-50 rounded-lg border border-gray-300 p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Category</label>
               <Select value={category} onChange={e => { setCategory(e.target.value); setPage(1); }}>
@@ -198,8 +219,16 @@ export function PharmacyClient() {
                 ))}
               </Select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">From Date</label>
+              <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">To Date</label>
+              <Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }} />
+            </div>
             <div className="flex items-end">
-              <label className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-300 bg-white cursor-pointer w-full sm:w-auto">
+              <label className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-300 bg-white cursor-pointer w-full">
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
                 <span className="text-xs font-medium text-gray-600">Low Stock Only</span>
                 <input

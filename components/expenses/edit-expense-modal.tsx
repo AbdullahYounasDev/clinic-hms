@@ -334,12 +334,12 @@ export function EditExpenseModal({ open, onClose, expense, onUpdate, isPending, 
                     </Select>
                 </FormField>
 
-                {status === "approved" && (
+                {/* {status === "approved" && (
                     <Alert type="success">Approving this expense will lock it from further edits.</Alert>
                 )}
                 {status === "rejected" && (
                     <Alert type="error">Rejected expenses cannot be edited further.</Alert>
-                )}
+                )} */}
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
                     <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>

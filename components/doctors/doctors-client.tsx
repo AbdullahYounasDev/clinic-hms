@@ -29,6 +29,8 @@ export function DoctorsClient() {
   const [search, setSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [availabilityFilter, setAvailabilityFilter] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -39,10 +41,10 @@ export function DoctorsClient() {
   const canCreate = isSA || perms.includes("doctors:create");
   const canDelete = isSA || perms.includes("doctors:delete");
 
-  const activeFiltersCount = [departmentFilter, availabilityFilter].filter(Boolean).length;
+  const activeFiltersCount = [departmentFilter, availabilityFilter, from, to].filter(Boolean).length;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["doctors", page, search, departmentFilter, availabilityFilter],
+    queryKey: ["doctors", page, search, departmentFilter, availabilityFilter, from, to],
     queryFn: () => axios.get("/api/doctors", {
       params: {
         page,
@@ -50,6 +52,8 @@ export function DoctorsClient() {
         search: search || undefined,
         department: departmentFilter || undefined,
         isAvailable: availabilityFilter || undefined,
+        from: from || undefined,
+        to: to || undefined,
       },
     }).then(r => r.data),
   });
@@ -184,8 +188,24 @@ export function DoctorsClient() {
               </button>
             </span>
           )}
+          {from && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              From: {from}
+              <button onClick={() => { setFrom(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {to && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              To: {to}
+              <button onClick={() => { setTo(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
           <button
-            onClick={() => { setDepartmentFilter(""); setAvailabilityFilter(""); setPage(1); }}
+            onClick={() => { setDepartmentFilter(""); setAvailabilityFilter(""); setFrom(""); setTo(""); setPage(1); }}
             className="text-xs text-gray-400 cursor-pointer"
           >
             Clear all
@@ -196,7 +216,7 @@ export function DoctorsClient() {
       {/* Expanded Filters */}
       {filtersOpen && (
         <div className="bg-gray-50 rounded-lg border border-gray-300 p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Department</label>
               <Select value={departmentFilter} onChange={e => { setDepartmentFilter(e.target.value); setPage(1); }}>
@@ -213,6 +233,14 @@ export function DoctorsClient() {
                 <option value="true">Available</option>
                 <option value="false">Unavailable</option>
               </Select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">From Date</label>
+              <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">To Date</label>
+              <Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }} />
             </div>
           </div>
         </div>

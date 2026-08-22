@@ -29,11 +29,28 @@ export async function GET(req: NextRequest) {
   const lowStock = sp.get("lowStock") === "true";
   const search = sp.get("search") || "";
   const isActive = sp.get("isActive");
+  const from = sp.get("from") || "";
+  const to = sp.get("to") || "";
   const filter: Record<string, unknown> = {};
   applyIsActiveFilter(filter, isActive);
   if (category) filter.category = category;
   if (lowStock) filter.$expr = { $lte: ["$currentQuantity", "$minQuantity"] };
   if (search) filter.name = { $regex: search, $options: "i" };
+
+  if (from || to) {
+    const { getClinicDayBounds, getClinicTimezone } = await import("@/lib/time-utils");
+    const tz = await getClinicTimezone();
+    filter.createdAt = {};
+    if (from) {
+      const bounds = getClinicDayBounds(from, tz);
+      (filter.createdAt as Record<string, unknown>).$gte = bounds.start;
+    }
+    if (to) {
+      const bounds = getClinicDayBounds(to, tz);
+      (filter.createdAt as Record<string, unknown>).$lte = bounds.end;
+    }
+  }
+
   const [items, total] = await Promise.all([
     InventoryItem.find(filter).skip(skip).limit(limit).sort({ name: 1 }).populate("supplier", "name").lean(),
     InventoryItem.countDocuments(filter),

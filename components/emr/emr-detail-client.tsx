@@ -171,7 +171,13 @@ export function EMRDetailClient({ emrId }: { emrId: string }) {
 
     const record: EMRRecord = data.data;
     const allMedicines: any[] = [];
-    record.prescriptions?.forEach((rx: any) => { rx.medicines?.forEach((m: any) => allMedicines.push(m)); });
+    const allRxNotes: string[] = [];
+    record.prescriptions?.forEach((rx: any) => {
+        rx.medicines?.forEach((m: any) => allMedicines.push(m));
+        if (rx.notes && typeof rx.notes === "string" && rx.notes.trim()) {
+            allRxNotes.push(rx.notes.trim());
+        }
+    });
 
     return (
         <div className="space-y-4">
@@ -194,7 +200,7 @@ export function EMRDetailClient({ emrId }: { emrId: string }) {
                 {Object.values(record.vitals || {}).some(v => v) && (<Card className="sm:col-span-2"><CardBody><div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center"><Heart className="w-4 h-4 text-red-500" /></div><h3 className="text-xs font-semibold text-gray-900">Vitals</h3></div><div className="grid grid-cols-3 sm:grid-cols-5 gap-3">{record.vitals?.temperature && <Vital label="Temperature" value={`${record.vitals.temperature} °C`} />}{(record.vitals?.bloodPressureSystolic || record.vitals?.bloodPressureDiastolic) && <Vital label="Blood Pressure" value={`${record.vitals.bloodPressureSystolic}/${record.vitals.bloodPressureDiastolic} mmHg`} />}{record.vitals?.heartRate && <Vital label="Heart Rate" value={`${record.vitals.heartRate} bpm`} />}{record.vitals?.respiratoryRate && <Vital label="Resp Rate" value={`${record.vitals.respiratoryRate} /min`} />}{record.vitals?.oxygenSaturation && <Vital label="O2 Sat" value={`${record.vitals.oxygenSaturation}%`} />}{record.vitals?.weight && <Vital label="Weight" value={`${record.vitals.weight} kg`} />}{record.vitals?.height && <Vital label="Height" value={`${record.vitals.height} cm`} />}{record.vitals?.bloodSugar && <Vital label="Blood Sugar" value={`${record.vitals.bloodSugar} mg/dL`} />}</div></CardBody></Card>)}
                 {record.diagnosis?.length > 0 && (<Card className="sm:col-span-2"><CardBody><div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center"><Stethoscope className="w-4 h-4 text-teal-600" /></div><h3 className="text-xs font-semibold text-gray-900">Diagnosis</h3></div><div className="space-y-1.5">{record.diagnosis.map((d, i) => <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200"><Badge variant={d.type === "primary" ? "info" : "outline"}>{d.type}</Badge><span className="text-xs text-gray-700">{d.description}</span>{d.icdCode && <span className="text-xs text-gray-400">ICD: {d.icdCode}</span>}</div>)}</div></CardBody></Card>)}
                 {record.treatmentPlan && (<Card className="sm:col-span-2"><CardBody><div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><FileText className="w-4 h-4 text-gray-400" /></div><h3 className="text-xs font-semibold text-gray-900">Treatment Plan</h3></div><p className="text-xs text-gray-600 whitespace-pre-wrap">{record.treatmentPlan}</p></CardBody></Card>)}
-                {allMedicines.length > 0 && (<Card className="sm:col-span-2"><CardBody><div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center"><Pill className="w-4 h-4 text-teal-600" /></div><h3 className="text-xs font-semibold text-gray-900">Prescriptions</h3></div><div className="overflow-x-auto"><Table><thead><tr><Th>Medicine</Th><Th>Strength</Th><Th>Dosage</Th><Th>Frequency</Th><Th>Duration</Th><Th>Route</Th><Th>Qty</Th><Th>Instructions</Th></tr></thead><tbody>{allMedicines.map((m: any, i: number) => <tr key={i}><Td className="font-medium text-gray-900">{m.medicineName || "—"}</Td><Td>{m.strength || "—"}</Td><Td>{m.dosage || "—"}</Td><Td>{m.frequency || "—"}</Td><Td>{m.duration || "—"}</Td><Td className="capitalize">{m.route || "—"}</Td><Td>{m.quantity || "—"}</Td><Td className="max-w-[150px] ">{m.instructions || "—"}</Td></tr>)}</tbody></Table></div></CardBody></Card>)}
+                {allMedicines.length > 0 && (<Card className="sm:col-span-2"><CardBody><div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center"><Pill className="w-4 h-4 text-teal-600" /></div><h3 className="text-xs font-semibold text-gray-900">Prescriptions</h3></div><div className="overflow-x-auto"><Table><thead><tr><Th>Medicine</Th><Th>Strength</Th><Th>Dosage</Th><Th>Frequency</Th><Th>Duration</Th><Th>Route</Th><Th>Qty</Th><Th>Instructions</Th></tr></thead><tbody>{allMedicines.map((m: any, i: number) => <tr key={i}><Td className="font-medium text-gray-900">{m.medicineName || "—"}</Td><Td>{m.strength || "—"}</Td><Td>{m.dosage || "—"}</Td><Td>{m.frequency || "—"}</Td><Td>{m.duration || "—"}</Td><Td className="capitalize">{m.route || "—"}</Td><Td>{m.quantity || "—"}</Td><Td className="max-w-[150px] ">{m.instructions || "—"}</Td></tr>)}</tbody></Table></div>{allRxNotes.length > 0 && (<div className="mt-4 pt-3 border-t border-gray-100"><p className="text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-teal-600"></span>Prescription Notes</p><div className="space-y-1 bg-teal-50/50 border border-teal-100/80 rounded-lg p-2.5">{allRxNotes.map((note, idx) => (<p key={idx} className="text-xs text-teal-900 whitespace-pre-wrap">{allRxNotes.length > 1 ? `• ${note}` : note}</p>))}</div></div>)}</CardBody></Card>)}
                 {record.notes && (<Card className="sm:col-span-2"><CardBody><div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><FileText className="w-4 h-4 text-gray-400" /></div><h3 className="text-xs font-semibold text-gray-900">Notes</h3></div><p className="text-xs text-gray-600 whitespace-pre-wrap">{record.notes}</p></CardBody></Card>)}
                 <Card className="sm:col-span-2"><CardBody><div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><Clock className="w-4 h-4 text-gray-400" /></div><h3 className="text-xs font-semibold text-gray-900">Record Information</h3></div><div className="flex gap-6 sm:gap-10"><div><p className="text-xs text-gray-400">Created</p><p className="text-xs text-gray-700 mt-0.5">{formatDate(record.createdAt)}</p></div><div><p className="text-xs text-gray-400">Last Updated</p><p className="text-xs text-gray-700 mt-0.5">{formatDate(record.updatedAt)}</p></div></div></CardBody></Card>
             </div>
@@ -205,22 +211,165 @@ export function EMRDetailClient({ emrId }: { emrId: string }) {
                     {(["emr", "rx"] as const).map(t => <button key={t} type="button" onClick={() => setActiveTab(t)} className={cn("px-3 py-2 text-xs font-medium border-b-2 cursor-pointer", activeTab === t ? "border-teal-600 text-teal-700" : "border-transparent text-gray-500")}>{t === "emr" ? "Visit Details" : "Prescriptions"}</button>)}
                 </div>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                    {activeTab === "emr" && (<>
-                        <FormField label="Chief Complaint" required error={errors.chiefComplaint?.message}><Input {...register("chiefComplaint", { required: true })} /></FormField>
-                        <div><div className="flex items-center justify-between mb-2"><p className="text-xs font-medium text-gray-600">Symptoms</p><Button type="button" size="sm" variant="secondary" onClick={() => symptomFields.append("" as any)}><Plus className="w-3.5 h-3.5" /> Add</Button></div><div className="space-y-2">{symptomFields.fields.map((field, i) => <div key={field.id} className="flex gap-2"><Input {...register(`symptoms.${i}`)} placeholder="Symptom" className="flex-1" />{symptomFields.fields.length > 1 && <button type="button" onClick={() => symptomFields.remove(i)} className="p-2 text-red-400 cursor-pointer"><Trash2 className="w-4 h-4" /></button>}</div>)}</div></div>
-                        <FormField label="Allergies (comma-separated)"><Input {...register("allergies")} placeholder="e.g. Penicillin, Nuts" /></FormField>
-                        <div><p className="text-xs font-medium text-gray-600 mb-2">Vitals</p><div className="grid grid-cols-2 sm:grid-cols-3 gap-3"><FormField label="Temp (°C)"><Input type="number" step="0.1" {...register("vitals.temperature")} placeholder="37.0" /></FormField><FormField label="BP Systolic"><Input type="number" {...register("vitals.bloodPressureSystolic")} placeholder="120" /></FormField><FormField label="BP Diastolic"><Input type="number" {...register("vitals.bloodPressureDiastolic")} placeholder="80" /></FormField><FormField label="Heart Rate"><Input type="number" {...register("vitals.heartRate")} placeholder="72" /></FormField><FormField label="Resp Rate"><Input type="number" {...register("vitals.respiratoryRate")} placeholder="16" /></FormField><FormField label="O2 Sat (%)"><Input type="number" {...register("vitals.oxygenSaturation")} placeholder="98" /></FormField><FormField label="Weight (kg)"><Input type="number" step="0.1" {...register("vitals.weight")} placeholder="70" /></FormField><FormField label="Height (cm)"><Input type="number" step="0.1" {...register("vitals.height")} placeholder="170" /></FormField><FormField label="Blood Sugar"><Input type="number" {...register("vitals.bloodSugar")} placeholder="100" /></FormField></div></div>
-                        <div><div className="flex items-center justify-between mb-2"><p className="text-xs font-medium text-gray-600">Diagnosis</p><Button type="button" size="sm" variant="secondary" onClick={() => diagFields.append({ icdCode: "", description: "", type: "primary" })}><Plus className="w-3.5 h-3.5" /> Add</Button></div><div className="space-y-2">{diagFields.fields.map((field, i) => <div key={field.id} className="flex gap-2"><Input {...register(`diagnosis.${i}.description`)} placeholder="Description" className="flex-1" /><Input {...register(`diagnosis.${i}.icdCode`)} placeholder="ICD" className="w-20" /><Select {...register(`diagnosis.${i}.type`)} className="w-28"><option value="primary">Primary</option><option value="secondary">Secondary</option></Select>{diagFields.fields.length > 1 && <button type="button" onClick={() => diagFields.remove(i)} className="p-2 text-red-400 cursor-pointer"><Trash2 className="w-4 h-4" /></button>}</div>)}</div></div>
-                        <FormField label="Treatment Plan"><textarea {...register("treatmentPlan")} rows={2} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs resize-none focus:outline-none focus:border-teal-600 text-gray-700 placeholder:text-gray-400" /></FormField>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><FormField label="Follow-up Date"><Input type="date" {...register("followUpDate")} /></FormField><FormField label="Notes"><Input {...register("notes")} /></FormField></div>
-                    </>)}
-                    {activeTab === "rx" && (<div className="space-y-4">
-                        <div className="flex items-center justify-between"><p className="text-xs font-medium text-gray-600">Prescriptions</p><Button type="button" size="sm" variant="secondary" onClick={() => rxFields.append({ medicine: "", strength: "", dosage: "", frequency: "", duration: "", route: "oral", instructions: "", quantity: 0 })}><Plus className="w-3.5 h-3.5" /> Add Medicine</Button></div>
-                        {rxFields.fields.map((field, i) => <div key={field.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2"><div className="grid grid-cols-1 sm:grid-cols-3 gap-2"><FormField label="Medicine" required><Input {...register(`prescriptions.${i}.medicine`)} /></FormField><FormField label="Strength"><Input {...register(`prescriptions.${i}.strength`)} /></FormField><FormField label="Dosage" required><Input {...register(`prescriptions.${i}.dosage`)} /></FormField></div><div className="grid grid-cols-1 sm:grid-cols-3 gap-2"><FormField label="Frequency" required><Input {...register(`prescriptions.${i}.frequency`)} /></FormField><FormField label="Duration"><Input {...register(`prescriptions.${i}.duration`)} /></FormField><FormField label="Route"><Select {...register(`prescriptions.${i}.route`)}><option value="oral">Oral</option><option value="iv">IV</option><option value="im">IM</option><option value="topical">Topical</option><option value="inhalation">Inhalation</option><option value="sublingual">Sublingual</option><option value="rectal">Rectal</option></Select></FormField></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-2"><FormField label="Quantity"><Input type="number" {...register(`prescriptions.${i}.quantity`, { valueAsNumber: true })} /></FormField><FormField label="Instructions"><Input {...register(`prescriptions.${i}.instructions`)} /></FormField></div><div className="flex justify-end"><button type="button" onClick={() => rxFields.remove(i)} className="text-xs text-gray-400 cursor-pointer">Remove</button></div></div>)}
-                        {rxFields.fields.length === 0 && <Alert type="info">No prescriptions added.</Alert>}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4"><FormField label="Prescription Type"><Select {...register("prescriptionType")}><option value="new">New</option><option value="refill">Refill</option><option value="renewal">Renewal</option></Select></FormField><FormField label="Duration"><div className="flex gap-2"><Input type="number" {...register("durationValue", { valueAsNumber: true })} className="w-20" /><Select {...register("durationUnit")}><option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option></Select></div></FormField></div>
-                        <FormField label="Prescription Notes"><Input {...register("prescriptionNotes")} /></FormField>
-                    </div>)}
+                    {activeTab === "emr" && (
+                        <>
+                            <FormField label="Chief Complaint" required error={errors.chiefComplaint?.message}>
+                                <Input {...register("chiefComplaint", { required: true })} placeholder="e.g. Severe headache and fever for 3 days" />
+                            </FormField>
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs font-medium text-gray-600">Symptoms</p>
+                                    <Button type="button" size="sm" variant="secondary" onClick={() => symptomFields.append("" as any)}>
+                                        <Plus className="w-3.5 h-3.5" /> Add
+                                    </Button>
+                                </div>
+                                <div className="space-y-2">
+                                    {symptomFields.fields.map((field, i) => (
+                                        <div key={field.id} className="flex gap-2">
+                                            <Input {...register(`symptoms.${i}`)} placeholder="e.g. High fever, chills, body ache" className="flex-1" />
+                                            {symptomFields.fields.length > 1 && (
+                                                <button type="button" onClick={() => symptomFields.remove(i)} className="p-2 text-red-400 hover:text-red-600 cursor-pointer">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <FormField label="Allergies (comma-separated)">
+                                <Input {...register("allergies")} placeholder="e.g. Penicillin, Nuts, Sulfa drugs" />
+                            </FormField>
+                            <div>
+                                <p className="text-xs font-medium text-gray-600 mb-2">Vitals</p>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    <FormField label="Temp (°C)"><Input type="number" step="0.1" {...register("vitals.temperature")} placeholder="37.0" /></FormField>
+                                    <FormField label="BP Systolic"><Input type="number" {...register("vitals.bloodPressureSystolic")} placeholder="120" /></FormField>
+                                    <FormField label="BP Diastolic"><Input type="number" {...register("vitals.bloodPressureDiastolic")} placeholder="80" /></FormField>
+                                    <FormField label="Heart Rate"><Input type="number" {...register("vitals.heartRate")} placeholder="72" /></FormField>
+                                    <FormField label="Resp Rate"><Input type="number" {...register("vitals.respiratoryRate")} placeholder="16" /></FormField>
+                                    <FormField label="O2 Sat (%)"><Input type="number" {...register("vitals.oxygenSaturation")} placeholder="98" /></FormField>
+                                    <FormField label="Weight (kg)"><Input type="number" step="0.1" {...register("vitals.weight")} placeholder="70" /></FormField>
+                                    <FormField label="Height (cm)"><Input type="number" step="0.1" {...register("vitals.height")} placeholder="170" /></FormField>
+                                    <FormField label="Blood Sugar"><Input type="number" {...register("vitals.bloodSugar")} placeholder="100" /></FormField>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs font-medium text-gray-600">Diagnosis</p>
+                                    <Button type="button" size="sm" variant="secondary" onClick={() => diagFields.append({ icdCode: "", description: "", type: "primary" })}>
+                                        <Plus className="w-3.5 h-3.5" /> Add
+                                    </Button>
+                                </div>
+                                <div className="space-y-2">
+                                    {diagFields.fields.map((field, i) => (
+                                        <div key={field.id} className="flex gap-2">
+                                            <Input {...register(`diagnosis.${i}.description`)} placeholder="e.g. Acute Upper Respiratory Tract Infection" className="flex-1" />
+                                            <Input {...register(`diagnosis.${i}.icdCode`)} placeholder="e.g. J06.9" className="w-24" />
+                                            <Select {...register(`diagnosis.${i}.type`)} className="w-28">
+                                                <option value="primary">Primary</option>
+                                                <option value="secondary">Secondary</option>
+                                            </Select>
+                                            {diagFields.fields.length > 1 && (
+                                                <button type="button" onClick={() => diagFields.remove(i)} className="p-2 text-red-400 hover:text-red-600 cursor-pointer">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <FormField label="Treatment Plan">
+                                <textarea
+                                    {...register("treatmentPlan")}
+                                    rows={2}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs resize-none focus:outline-none focus:border-teal-600 text-gray-700 placeholder:text-gray-400"
+                                    placeholder="e.g. Complete 5-day antibiotic course, rest, follow-up in 1 week"
+                                />
+                            </FormField>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <FormField label="Follow-up Date"><Input type="date" {...register("followUpDate")} /></FormField>
+                                <FormField label="Notes"><Input {...register("notes")} placeholder="e.g. Patient advised to return if fever exceeds 39°C" /></FormField>
+                            </div>
+                        </>
+                    )}
+                    {activeTab === "rx" && (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <p className="text-xs font-medium text-gray-600">Prescriptions</p>
+                                <Button type="button" size="sm" variant="secondary" onClick={() => rxFields.append({ medicine: "", strength: "", dosage: "", frequency: "", duration: "", route: "oral", instructions: "", quantity: 0 })}>
+                                    <Plus className="w-3.5 h-3.5" /> Add Medicine
+                                </Button>
+                            </div>
+                            {rxFields.fields.map((field, i) => (
+                                <div key={field.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        <FormField label="Medicine" required>
+                                            <Input {...register(`prescriptions.${i}.medicine`)} placeholder="e.g. Paracetamol / Amoxicillin" />
+                                        </FormField>
+                                        <FormField label="Strength">
+                                            <Input {...register(`prescriptions.${i}.strength`)} placeholder="e.g. 500mg / 10ml / 250mg" />
+                                        </FormField>
+                                        <FormField label="Dosage" required>
+                                            <Input {...register(`prescriptions.${i}.dosage`)} placeholder="e.g. 1 Tablet / 2 Puffs / 5ml" />
+                                        </FormField>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        <FormField label="Frequency" required>
+                                            <Input {...register(`prescriptions.${i}.frequency`)} placeholder="e.g. 1-0-1 / Twice daily / Every 8 hrs" />
+                                        </FormField>
+                                        <FormField label="Duration">
+                                            <Input {...register(`prescriptions.${i}.duration`)} placeholder="e.g. 5 days / 1 week / 1 month" />
+                                        </FormField>
+                                        <FormField label="Route">
+                                            <Select {...register(`prescriptions.${i}.route`)}>
+                                                <option value="oral">Oral</option>
+                                                <option value="iv">IV</option>
+                                                <option value="im">IM</option>
+                                                <option value="topical">Topical</option>
+                                                <option value="inhalation">Inhalation</option>
+                                                <option value="sublingual">Sublingual</option>
+                                                <option value="rectal">Rectal</option>
+                                            </Select>
+                                        </FormField>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <FormField label="Quantity">
+                                            <Input type="number" {...register(`prescriptions.${i}.quantity`, { valueAsNumber: true })} placeholder="e.g. 10 / 30" />
+                                        </FormField>
+                                        <FormField label="Instructions">
+                                            <Input {...register(`prescriptions.${i}.instructions`)} placeholder="e.g. Take after meals with a full glass of water" />
+                                        </FormField>
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <button type="button" onClick={() => rxFields.remove(i)} className="text-xs text-gray-400 hover:text-red-500 cursor-pointer">Remove</button>
+                                    </div>
+                                </div>
+                            ))}
+                            {rxFields.fields.length === 0 && <Alert type="info">No prescriptions added.</Alert>}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                                <FormField label="Prescription Type">
+                                    <Select {...register("prescriptionType")}>
+                                        <option value="new">New</option>
+                                        <option value="refill">Refill</option>
+                                        <option value="renewal">Renewal</option>
+                                    </Select>
+                                </FormField>
+                                <FormField label="Duration">
+                                    <div className="flex gap-2">
+                                        <Input type="number" {...register("durationValue", { valueAsNumber: true })} className="w-20" placeholder="5" />
+                                        <Select {...register("durationUnit")}>
+                                            <option value="days">Days</option>
+                                            <option value="weeks">Weeks</option>
+                                            <option value="months">Months</option>
+                                        </Select>
+                                    </div>
+                                </FormField>
+                            </div>
+                            <FormField label="Prescription Notes">
+                                <Input {...register("prescriptionNotes")} placeholder="e.g. Rest well, maintain hydration, and return if symptoms worsen" />
+                            </FormField>
+                        </div>
+                    )}
                     <div className="flex justify-end gap-2 pt-2 border-t border-gray-300"><Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>Cancel</Button><Button type="submit" loading={updateMutation.isPending}>Save Changes</Button></div>
                 </form>
             </Modal>

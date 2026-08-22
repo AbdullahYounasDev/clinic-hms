@@ -11,6 +11,20 @@ export async function GET(_req: NextRequest) {
 
   await connectDB();
 
+  // Ensure default permissions exist in DB
+  const existingCount = await Permission.countDocuments();
+  if (existingCount < DEFAULT_PERMISSIONS.length) {
+    await Promise.allSettled(
+      DEFAULT_PERMISSIONS.map((p) =>
+        Permission.findOneAndUpdate(
+          { module: p.module, action: p.action },
+          p,
+          { upsert: true, new: true }
+        )
+      )
+    );
+  }
+
   const permissions = await Permission.find({}).sort({ module: 1, action: 1 }).lean();
 
   // Group by module for easier frontend consumption

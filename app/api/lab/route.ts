@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
   const status = sp.get("status") || "";
   const patientId = sp.get("patient") || "";
   const search = sp.get("search") || "";
+  const from = sp.get("from") || "";
+  const to = sp.get("to") || "";
 
   const filter: Record<string, unknown> = {};
 
@@ -37,6 +39,21 @@ export async function GET(req: NextRequest) {
   const isPaidParam = sp.get("isPaid");
   if (isPaidParam === "false") filter.isPaid = false;
   if (isPaidParam === "true") filter.isPaid = true;
+
+  // Date range filter
+  if (from || to) {
+    const { getClinicDayBounds, getClinicTimezone } = await import("@/lib/time-utils");
+    const tz = await getClinicTimezone();
+    filter.createdAt = {};
+    if (from) {
+      const bounds = getClinicDayBounds(from, tz);
+      (filter.createdAt as Record<string, unknown>).$gte = bounds.start;
+    }
+    if (to) {
+      const bounds = getClinicDayBounds(to, tz);
+      (filter.createdAt as Record<string, unknown>).$lte = bounds.end;
+    }
+  }
 
   // Search by patient name or ID
   if (search) {
@@ -63,18 +80,19 @@ export async function GET(req: NextRequest) {
     LabTest.countDocuments(filter),
   ]);
 
-  // Auto-sync isPaid status for unpaid tests if a paid invoice exists
+  // Auto-sync isPaid status for unpaid tests if a paid invoice exists for this specific test
   const unpaidTests = tests.filter((t: any) => !t.isPaid);
   if (unpaidTests.length > 0) {
     const { Invoice } = await import("@/models/operations.model");
     for (const t of unpaidTests) {
-      const patientId = typeof t.patient === "object" ? (t.patient as any)?._id : t.patient;
+      const queryOr: any[] = [{ "items.labOrderId": t._id }];
+      if (t.invoiceId) {
+        const testInvoiceId = typeof t.invoiceId === "object" ? (t.invoiceId as any)?._id : t.invoiceId;
+        if (testInvoiceId) queryOr.push({ _id: testInvoiceId });
+      }
+
       const matchingInvoice = await Invoice.findOne({
-        $or: [
-          { "items.labOrderId": t._id },
-          ...(t.invoiceId ? [{ _id: t.invoiceId }] : []),
-          ...(patientId ? [{ patient: patientId, invoiceType: "lab" }] : [])
-        ],
+        $or: queryOr,
         status: "paid",
       }).lean();
 

@@ -21,7 +21,6 @@ const TABS = [
   { id: "clinic", label: "Clinic Information", icon: Building2 },
   { id: "workingDays", label: "Working Days & Hours", icon: Clock },
   { id: "closingDays", label: "Closing Days / Holidays", icon: CalendarOff },
-  { id: "departments", label: "Departments", icon: Settings },
 ];
 
 const DAYS_OF_WEEK = [
@@ -48,12 +47,6 @@ export function SettingsClient() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isDeletingLogo, setIsDeletingLogo] = useState(false);
-
-  // Departments state
-  const [newDept, setNewDept] = useState({ name: "", code: "", description: "" });
-  const [editDept, setEditDept] = useState<{ id: string; name: string; code: string; description: string } | null>(null);
-  const [deptError, setDeptError] = useState("");
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
 
   // Working Days state
   const [isAddDayOpen, setIsAddDayOpen] = useState(false);
@@ -84,13 +77,7 @@ export function SettingsClient() {
     queryFn: () => axios.get("/api/settings").then(r => r.data),
   });
 
-  const { data: deptsData } = useQuery({
-    queryKey: ["departments"],
-    queryFn: () => axios.get("/api/settings/departments").then(r => r.data),
-  });
-
   const settings = settingsData?.data;
-  const departments: { _id: string; name: string; code: string; description?: string; isActive: boolean }[] = deptsData?.data || [];
 
   const { register, handleSubmit, reset, control, setValue, watch } = useForm<{
     clinicName: string;
@@ -150,46 +137,6 @@ export function SettingsClient() {
       setSaveError(msg);
       toast.error(msg);
     },
-  });
-
-  // Department mutations
-  const addDeptMutation = useMutation({
-    mutationFn: (d: typeof newDept) => axios.post("/api/settings/departments", d),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["departments"] });
-      setNewDept({ name: "", code: "", description: "" });
-      setDeptError("");
-      toast.success("Department added!");
-    },
-    onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed";
-      setDeptError(msg);
-      toast.error(msg);
-    },
-  });
-
-  const updateDeptMutation = useMutation({
-    mutationFn: (d: { id: string; name: string; code: string; description?: string }) =>
-      axios.put(`/api/settings/departments/${d.id}`, d),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["departments"] });
-      setEditDept(null);
-      toast.success("Department updated!");
-    },
-    onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to update department";
-      toast.error(msg);
-    },
-  });
-
-  const deleteDeptMutation = useMutation({
-    mutationFn: (id: string) => axios.delete(`/api/settings/departments/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["departments"] });
-      setDeleteConfirm({ open: false, id: "", label: "" });
-      toast.success("Department deleted!");
-    },
-    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
   });
 
   // Upload logo to Cloudinary
@@ -876,140 +823,6 @@ export function SettingsClient() {
           </CardBody>
         </Card>
       )}
-
-      {/* TAB 4: DEPARTMENTS */}
-      {tab === "departments" && (
-        <div className="space-y-4">
-          <Card>
-            <CardBody className="p-4 sm:p-5 space-y-3">
-              <h3 className="text-xs font-semibold text-gray-900">Departments ({departments.length})</h3>
-              {departments.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-8">No departments defined.</p>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {departments.map((d) => (
-                    <div key={d._id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 sm:py-2.5 gap-2">
-                      <div className="min-w-0 flex-1 space-y-1 sm:space-y-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-semibold sm:font-medium text-gray-900">{d.name}</span>
-                          <Badge variant="outline">{d.code}</Badge>
-                          <Badge variant={d.isActive ? "success" : "default"}>{d.isActive ? "Active" : "Inactive"}</Badge>
-                        </div>
-                        {d.description && <p className="text-xs text-gray-500 sm:text-gray-400 sm:mt-0.5">{d.description}</p>}
-                      </div>
-                      {canEdit && d.isActive && (
-                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => setEditDept({ id: d._id, name: d.name, code: d.code, description: d.description || "" })}
-                          >
-                            <Edit2 className="w-3.5 h-3.5 text-gray-600" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => setDeleteConfirm({ open: true, id: d._id, label: `${d.name} (${d.code})` })}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardBody>
-          </Card>
-
-          {canEdit && (
-            <Card>
-              <CardBody className="p-4 sm:p-5 space-y-3">
-                <h3 className="text-xs font-semibold text-gray-900">Add Department</h3>
-                {deptError && <Alert type="error">{deptError}</Alert>}
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                  <div className="sm:col-span-4">
-                    <FormField label="Name">
-                      <Input value={newDept.name} onChange={(e) => setNewDept((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Cardiology" />
-                    </FormField>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <FormField label="Code">
-                      <Input value={newDept.code} onChange={(e) => setNewDept((p) => ({ ...p, code: e.target.value.toUpperCase() }))} placeholder="CARD" />
-                    </FormField>
-                  </div>
-                  <div className="sm:col-span-4">
-                    <FormField label="Description">
-                      <Input value={newDept.description} onChange={(e) => setNewDept((p) => ({ ...p, description: e.target.value }))} placeholder="Optional" />
-                    </FormField>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Button onClick={() => addDeptMutation.mutate(newDept)} loading={addDeptMutation.isPending} disabled={!newDept.name || !newDept.code} className="w-full">
-                      <Plus className="w-3.5 h-3.5" /> Add
-                    </Button>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {/* Edit Department Modal */}
-      <Modal open={!!editDept} onClose={() => setEditDept(null)} title="Edit Department" size="md">
-        {editDept && (
-          <div className="space-y-4 text-xs mt-2">
-            <FormField label="Department Name">
-              <Input
-                value={editDept.name}
-                onChange={(e) => setEditDept((prev) => prev ? { ...prev, name: e.target.value } : null)}
-                placeholder="Department Name"
-              />
-            </FormField>
-            <FormField label="Department Code">
-              <Input
-                value={editDept.code}
-                onChange={(e) => setEditDept((prev) => prev ? { ...prev, code: e.target.value.toUpperCase() } : null)}
-                placeholder="CODE"
-              />
-            </FormField>
-            <FormField label="Description">
-              <Input
-                value={editDept.description}
-                onChange={(e) => setEditDept((prev) => prev ? { ...prev, description: e.target.value } : null)}
-                placeholder="Description (Optional)"
-              />
-            </FormField>
-            <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
-              <Button variant="secondary" onClick={() => setEditDept(null)}>Cancel</Button>
-              <Button
-                disabled={!editDept.name || !editDept.code}
-                loading={updateDeptMutation.isPending}
-                onClick={() => updateDeptMutation.mutate(editDept)}
-              >
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Delete Department Modal */}
-      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: "", label: "" })} title="Delete Department" size="sm">
-        <div className="space-y-4 mt-2">
-          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
-            <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-semibold text-red-800">Delete permanently?</p>
-              <p className="text-xs text-red-600 mt-0.5">This will permanently delete <strong>{deleteConfirm.label}</strong>.</p>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
-            <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
-            <Button variant="danger" loading={deleteDeptMutation.isPending} onClick={() => deleteDeptMutation.mutate(deleteConfirm.id)}>Delete Permanently</Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

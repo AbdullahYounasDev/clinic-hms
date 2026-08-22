@@ -4,11 +4,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
-import { Plus, AlertTriangle, Search, X, ScanLine, Loader2, Barcode as BarcodeIcon, Camera, PenLine } from "lucide-react";
+import { Plus, AlertTriangle, Search, X, ScanLine, Loader2, Barcode as BarcodeIcon, Camera, PenLine, Flashlight } from "lucide-react";
 import { Card, CardBody, Button, FormField, Input, Select, Modal, Alert } from "@/components/ui";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { UseFormSetValue } from "react-hook-form";
-import { Html5Qrcode } from "html5-qrcode";
+import { ZxingBarcodeScanner } from "@/lib/utils/barcode";
 import { toast } from "sonner";
 
 interface LineItem {
@@ -25,8 +25,6 @@ interface Props {
     setValue: UseFormSetValue<any>;
     register: any;
 }
-
-const SCANNER_ELEMENT_ID = "pharmacy-sale-barcode-scanner";
 
 export function PharmacySaleSection({ watchedItems, setValue, register }: Props) {
     const [selectedMedicine, setSelectedMedicine] = useState("");
@@ -46,7 +44,11 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
     const [scannerError, setScannerError] = useState("");
     const [checkingBarcode, setCheckingBarcode] = useState(false);
     const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
-    const scannerRef = useRef<Html5Qrcode | null>(null);
+    const [hasTorch, setHasTorch] = useState(false);
+    const [isTorchOn, setIsTorchOn] = useState(false);
+
+    const scannerRef = useRef<ZxingBarcodeScanner | null>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
 
     const { data: medicinesData } = useQuery({
         queryKey: ["medicines-select"],
@@ -192,20 +194,26 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
     };
 
     // --- Barcode scanning ---
-    const stopScanner = useCallback(async () => {
+    const stopScanner = useCallback(() => {
         if (scannerRef.current) {
-            try {
-                const state = scannerRef.current.getState();
-                if (state === 2) await scannerRef.current.stop();
-                scannerRef.current.clear();
-            } catch { /* ignore */ }
+            scannerRef.current.stop();
             scannerRef.current = null;
         }
+        setHasTorch(false);
+        setIsTorchOn(false);
     }, []);
+
+    const closeScanner = useCallback(() => {
+        stopScanner();
+        setScannerOpen(false);
+        setScannerError("");
+        setCameraPermissionDenied(false);
+        setCheckingBarcode(false);
+    }, [stopScanner]);
 
     const handleScanSuccess = useCallback(async (decodedText: string) => {
         if (checkingBarcode) return;
-        await stopScanner();
+        stopScanner();
         const rawCode = decodedText.trim();
         const { parseBarcodeData } = await import("@/lib/utils/barcode-parser");
         const parsed = parseBarcodeData(rawCode);
@@ -228,7 +236,7 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
                     return;
                 }
                 handleSelectMedicine(local);
-                setScannerOpen(false);
+                closeScanner();
                 toast.success(`Selected: ${local.name}`);
                 return;
             }
@@ -247,7 +255,7 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
                     return;
                 }
                 handleSelectMedicine(m);
-                setScannerOpen(false);
+                closeScanner();
                 toast.success(`Selected: ${m.name}`);
             } else {
                 setScannerError("No medicine found for this barcode/QR code.");
@@ -258,51 +266,64 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
             setCheckingBarcode(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [checkingBarcode, medicines, stockAdjustments, stopScanner]);
+    }, [checkingBarcode, medicines, stockAdjustments, stopScanner, closeScanner]);
 
     // --- Start camera when scanner opens ---
     useEffect(() => {
         if (!scannerOpen) {
+            stopScanner();
             return;
         }
 
-        const timer = setTimeout(() => {
-            const el = document.getElementById(SCANNER_ELEMENT_ID);
-            if (!el) {
-                setCameraPermissionDenied(true);
-                setScannerError("Scanner element not found. Please try again.");
-                return;
-            }
+        let isMounted = true;
+        const scanner = new ZxingBarcodeScanner();
+        scannerRef.current = scanner;
+        setScannerStarting(true);
+        setScannerError("");
+        setCameraPermissionDenied(false);
 
-            setScannerError("");
-            setCameraPermissionDenied(false);
-            setScannerStarting(true);
-
-            const instance = new Html5Qrcode(SCANNER_ELEMENT_ID);
-            scannerRef.current = instance;
-
-            instance
-                .start(
-                    { facingMode: "environment" },
-                    { fps: 10, qrbox: { width: 260, height: 160 } },
-                    (decodedText) => handleScanSuccess(decodedText),
-                    () => { /* ignore */ }
-                )
-                .then(() => {
-                    setScannerStarting(false);
-                })
-                .catch(() => {
-                    setScannerStarting(false);
-                    setCameraPermissionDenied(true);
+        const timer = setTimeout(async () => {
+            if (!isMounted || !videoRef.current) return;
+            try {
+                await scanner.start(videoRef.current, {
+                    preferredFacingMode: "environment",
+                    onScan: (result) => {
+                        if (isMounted) handleScanSuccess(result.text);
+                    },
+                    onError: (err) => {
+                        if (!isMounted) return;
+                        const errStr = String(err);
+                        if (/permission|notallowed/i.test(errStr)) {
+                            setCameraPermissionDenied(true);
+                        } else {
+                            setScannerError("Unable to access camera. Please check camera permissions.");
+                        }
+                    },
+                    onReady: () => {
+                        if (!isMounted) return;
+                        setScannerStarting(false);
+                        const caps = scanner.getCapabilities();
+                        setHasTorch(caps.hasTorch);
+                    },
                 });
-        }, 100);
+            } catch (err: unknown) {
+                if (!isMounted) return;
+                const errStr = String(err);
+                setScannerStarting(false);
+                if (/permission|notallowed/i.test(errStr)) {
+                    setCameraPermissionDenied(true);
+                } else {
+                    setScannerError("Failed to start camera. Please verify device camera is available.");
+                }
+            }
+        }, 80);
 
         return () => {
+            isMounted = false;
             clearTimeout(timer);
-            stopScanner();
+            scanner.stop();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [scannerOpen]);
+    }, [scannerOpen, handleScanSuccess, stopScanner]);
 
     // --- Cleanup on unmount ---
     useEffect(() => {
@@ -311,10 +332,11 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
         };
     }, [stopScanner]);
 
-    const closeScanner = () => {
-        setScannerOpen(false);
-        setScannerError("");
-        setCameraPermissionDenied(false);
+    const handleToggleTorch = async () => {
+        if (scannerRef.current) {
+            const nextState = await scannerRef.current.toggleTorch();
+            setIsTorchOn(nextState);
+        }
     };
 
     return (
@@ -443,7 +465,7 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
                     </p>
                 )}
 
-                
+
 
                 {/* Added Items */}
                 {watchedItems.filter(i => i.category === "medicine").length > 0 && (
@@ -547,10 +569,38 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
                         <>
                             {scannerError && <Alert type="error">{scannerError}</Alert>}
 
-                            <div className="relative rounded-lg overflow-hidden border border-gray-300 bg-gray-50">
-                                <div id={SCANNER_ELEMENT_ID} className="w-full min-h-[260px]" />
+                            <div className="relative rounded-lg overflow-hidden border border-gray-300 bg-gray-900">
+                                <div className="relative w-full h-[260px] flex items-center justify-center overflow-hidden">
+                                    <video
+                                        ref={videoRef}
+                                        className="w-full h-full object-cover"
+                                        playsInline
+                                        muted
+                                    />
+                                    {/* Visual alignment reticle */}
+                                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                                        <div className="w-64 h-36 border-2 border-teal-500 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)] relative">
+                                            <div className="absolute inset-x-0 top-1/2 h-0.5 bg-teal-400/60 shadow-[0_0_8px_rgba(20,184,166,0.8)]" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {hasTorch && (
+                                    <div className="absolute top-2 right-2 z-10">
+                                        <button
+                                            type="button"
+                                            onClick={handleToggleTorch}
+                                            className={`p-2 rounded-full text-xs font-medium cursor-pointer shadow transition-colors ${isTorchOn ? "bg-amber-400 text-gray-900" : "bg-black/60 text-white hover:bg-black/80"
+                                                }`}
+                                            title="Toggle Flashlight"
+                                        >
+                                            <Flashlight className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
+
                                 {(scannerStarting || checkingBarcode) && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+                                    <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-20">
                                         <div className="flex items-center gap-2 text-gray-600 text-xs">
                                             <Loader2 className="w-4 h-4 animate-spin" />
                                             {checkingBarcode ? "Looking up medicine..." : "Starting camera..."}
@@ -563,14 +613,6 @@ export function PharmacySaleSection({ watchedItems, setValue, register }: Props)
                                 <BarcodeIcon className="w-3.5 h-3.5" />
                                 Align the barcode within the frame. It will scan automatically.
                             </p>
-
-                            <style jsx global>{`
-                                #${SCANNER_ELEMENT_ID} > div:first-child > div {
-                                    border: 3px solid #0d9488 !important;
-                                    border-radius: 8px !important;
-                                    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
-                                }
-                            `}</style>
 
                             <div className="flex justify-end pt-2 border-t border-gray-300">
                                 <Button type="button" variant="secondary" onClick={closeScanner}>Cancel</Button>

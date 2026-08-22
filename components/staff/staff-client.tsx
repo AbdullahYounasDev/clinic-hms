@@ -8,6 +8,7 @@ import { Search, Filter, ChevronDown, X } from "lucide-react";
 import {
   Card, Table, Th, Td, StatusBadge,
   EmptyState, Pagination, Badge, Select,
+  Input,
 } from "@/components/ui";
 import { formatDate, cn } from "@/lib/utils";
 
@@ -22,13 +23,24 @@ export function StaffClient() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const activeFiltersCount = [status].filter(Boolean).length;
+  const activeFiltersCount = [status, from, to].filter(Boolean).length;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["staff", page, search, status],
-    queryFn: () => axios.get("/api/users", { params: { page, limit: 20, search: search || undefined, status: status || undefined } }).then(r => r.data),
+    queryKey: ["staff", page, search, status, from, to],
+    queryFn: () => axios.get("/api/staff", {
+      params: {
+        page,
+        limit: 20,
+        search: search || undefined,
+        status: status || undefined,
+        from: from || undefined,
+        to: to || undefined,
+      }
+    }).then(r => r.data),
   });
 
   const staff: StaffMember[] = data?.data || [];
@@ -76,21 +88,43 @@ export function StaffClient() {
               <button onClick={() => { setStatus(""); setPage(1); }} className="cursor-pointer"><X className="w-3 h-3" /></button>
             </span>
           )}
-          <button onClick={() => { setStatus(""); setPage(1); }} className="text-xs text-gray-400 cursor-pointer">Clear all</button>
+          {from && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              From: {from}
+              <button onClick={() => { setFrom(""); setPage(1); }} className="cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          {to && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              To: {to}
+              <button onClick={() => { setTo(""); setPage(1); }} className="cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          <button onClick={() => { setStatus(""); setFrom(""); setTo(""); setPage(1); }} className="text-xs text-gray-400 cursor-pointer">Clear all</button>
         </div>
       )}
 
       {/* Expanded Filters */}
       {filtersOpen && (
         <div className="bg-gray-50 rounded-lg border border-gray-300 p-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
-            <Select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
-              <option value="">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
+              <Select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="suspended">Suspended</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">From Joined Date</label>
+              <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">To Joined Date</label>
+              <Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }} />
+            </div>
           </div>
         </div>
       )}
@@ -125,7 +159,15 @@ export function StaffClient() {
                     </div>
                   </Td>
                   <Td><Badge variant="outline">{s.role?.name}</Badge></Td>
-                  <Td className="text-gray-500">{s.department || "—"}</Td>
+                  <Td>
+                    {s.department ? (
+                      <Badge variant="outline" className="text-[11px] font-medium text-gray-700 bg-gray-50">
+                        {s.department}
+                      </Badge>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
+                  </Td>
                   <Td className="text-gray-600">{s.phone}</Td>
                   <Td><StatusBadge status={s.status} /></Td>
                   <Td className="text-gray-400">{s.lastLogin ? formatDate(s.lastLogin) : "Never"}</Td>
@@ -158,8 +200,14 @@ export function StaffClient() {
                     <span className="text-xs font-medium text-gray-900">{s.firstName} {s.lastName}</span>
                     <StatusBadge status={s.status} />
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="text-xs text-gray-500">{s.role?.name}</span>
+                    {s.department && (
+                      <>
+                        <span className="text-xs text-gray-400">•</span>
+                        <span className="text-xs font-medium text-teal-700">{s.department}</span>
+                      </>
+                    )}
                     <span className="text-xs text-gray-400">•</span>
                     <span className="text-xs text-gray-500">{s.phone}</span>
                   </div>

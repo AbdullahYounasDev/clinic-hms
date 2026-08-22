@@ -43,6 +43,8 @@ export function InventoryClient() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -54,8 +56,18 @@ export function InventoryClient() {
   const canDelete = isSA || perms.includes("inventory:delete");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["inventory", page, search, category, lowStockOnly],
-    queryFn: () => axios.get("/api/inventory", { params: { page, limit: 25, search, category, lowStock: lowStockOnly } }).then(r => r.data),
+    queryKey: ["inventory", page, search, category, lowStockOnly, from, to],
+    queryFn: () => axios.get("/api/inventory", {
+      params: {
+        page,
+        limit: 25,
+        search: search || undefined,
+        category: category || undefined,
+        lowStock: lowStockOnly || undefined,
+        from: from || undefined,
+        to: to || undefined,
+      }
+    }).then(r => r.data),
   });
 
   const { data: suppliersData } = useQuery({
@@ -123,10 +135,17 @@ export function InventoryClient() {
               <option value="supply">Supply</option>
               <option value="consumable">Consumable</option>
             </Select>
+            <div className="flex items-center gap-2">
+              <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} className="w-36" title="From Date" />
+              <Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }} className="w-36" title="To Date" />
+            </div>
             <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
               <input type="checkbox" checked={lowStockOnly} onChange={e => { setLowStockOnly(e.target.checked); setPage(1); }} className="rounded" />
               Low stock only
             </label>
+            {(search || category || from || to || lowStockOnly) && (
+              <button onClick={() => { setSearch(""); setCategory(""); setFrom(""); setTo(""); setLowStockOnly(false); setPage(1); }} className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer">Clear</button>
+            )}
           </div>
         </CardBody>
       </Card>

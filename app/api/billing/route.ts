@@ -18,10 +18,26 @@ export async function GET(req: NextRequest) {
   const { page, limit, skip } = getPaginationParams(sp);
   const status = sp.get("status") || "";
   const patientId = sp.get("patient") || "";
+  const from = sp.get("from") || sp.get("dateFrom") || "";
+  const to = sp.get("to") || sp.get("dateTo") || "";
 
   const filter: Record<string, unknown> = {};
   applyInvoiceStatusFilter(filter, status || null);
   if (patientId) filter.patient = patientId;
+
+  if (from || to) {
+    const { getClinicDayBounds, getClinicTimezone } = await import("@/lib/time-utils");
+    const tz = await getClinicTimezone();
+    filter.createdAt = {};
+    if (from) {
+      const bounds = getClinicDayBounds(from, tz);
+      (filter.createdAt as Record<string, unknown>).$gte = bounds.start;
+    }
+    if (to) {
+      const bounds = getClinicDayBounds(to, tz);
+      (filter.createdAt as Record<string, unknown>).$lte = bounds.end;
+    }
+  }
 
   const [invoices, total] = await Promise.all([
     Invoice.find(filter)

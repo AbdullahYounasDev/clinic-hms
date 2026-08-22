@@ -40,6 +40,8 @@ export async function GET(req: NextRequest) {
 
   const status = sp.get("status") || "";
   const date = sp.get("date") || "";
+  const from = sp.get("from") || "";
+  const to = sp.get("to") || "";
   const patientId = sp.get("patient") || "";
   const today = sp.get("today") === "true";
   const search = sp.get("search") || "";
@@ -49,7 +51,17 @@ export async function GET(req: NextRequest) {
 
   const clinicTz = await getClinicTimezone();
 
-  if (today) {
+  if (from || to) {
+    filter.scheduledDate = {};
+    if (from) {
+      const { start } = getClinicDayBounds(from, clinicTz);
+      (filter.scheduledDate as Record<string, unknown>).$gte = start;
+    }
+    if (to) {
+      const { end } = getClinicDayBounds(to, clinicTz);
+      (filter.scheduledDate as Record<string, unknown>).$lte = end;
+    }
+  } else if (today) {
     const todayStr = getClinicDateString(new Date(), clinicTz);
     const { start, end } = getClinicDayBounds(todayStr, clinicTz);
     filter.scheduledDate = { $gte: start, $lte: end };

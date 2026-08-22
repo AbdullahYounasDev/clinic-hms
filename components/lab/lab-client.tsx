@@ -24,6 +24,7 @@ interface LabTest {
   patient: { _id: string; firstName: string; lastName: string; patientId: string };
   tests: { catalogId?: string; testName: string; testCode?: string; category: string; cost: number }[];
   status: string; priority: string; totalCost: number; createdAt: string;
+  isPaid: boolean;
 }
 
 export function LabClient() {
@@ -31,12 +32,14 @@ export function LabClient() {
   const qc = useQueryClient();
   const router = useRouter();
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string; label: string }>({ open: false, id: "", label: "" });
+  const [statusFilter, setStatusFilter] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const isSA = session?.user?.isSuperAdmin;
@@ -44,12 +47,19 @@ export function LabClient() {
   const canCreate = isSA || perms.includes("lab:create");
   const canDelete = isSA || perms.includes("lab:delete");
 
-  const activeFiltersCount = [statusFilter].filter(Boolean).length;
+  const activeFiltersCount = [statusFilter, from, to].filter(Boolean).length;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["lab-tests", page, search, statusFilter],
+    queryKey: ["lab-tests", page, search, statusFilter, from, to],
     queryFn: () => axios.get("/api/lab", {
-      params: { page, limit: 20, search: search || undefined, status: statusFilter || undefined },
+      params: {
+        page,
+        limit: 20,
+        search: search || undefined,
+        status: statusFilter || undefined,
+        from: from || undefined,
+        to: to || undefined,
+      },
     }).then(r => r.data),
   });
 
@@ -158,24 +168,46 @@ export function LabClient() {
               <button onClick={() => { setStatusFilter(""); setPage(1); }} className="cursor-pointer"><X className="w-3 h-3" /></button>
             </span>
           )}
-          <button onClick={() => { setStatusFilter(""); setPage(1); }} className="text-xs text-gray-400 cursor-pointer">Clear all</button>
+          {from && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              From: {from}
+              <button onClick={() => { setFrom(""); setPage(1); }} className="cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          {to && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              To: {to}
+              <button onClick={() => { setTo(""); setPage(1); }} className="cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          <button onClick={() => { setStatusFilter(""); setFrom(""); setTo(""); setPage(1); }} className="text-xs text-gray-400 cursor-pointer">Clear all</button>
         </div>
       )}
 
       {/* Expanded Filters */}
       {filtersOpen && (
         <div className="bg-gray-50 rounded-lg border border-gray-300 p-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
-            <Select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
-              <option value="">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="sample_collected">Sample Collected</option>
-              <option value="processing">Processing</option>
-              <option value="completed">Completed</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
+              <Select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="sample_collected">Sample Collected</option>
+                <option value="processing">Processing</option>
+                <option value="completed">Completed</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">From Date</label>
+              <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">To Date</label>
+              <Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }} />
+            </div>
           </div>
         </div>
       )}

@@ -17,10 +17,27 @@ export async function GET(req: NextRequest) {
     const search = sp.get("search") || "";
     const type = sp.get("type") || "";
     const isActive = sp.get("isActive");
+    const from = sp.get("from") || "";
+    const to = sp.get("to") || "";
     const filter: Record<string, unknown> = {};
     applyIsActiveFilter(filter, isActive);
     if (type) filter.type = type;
     if (search) filter.$or = [{ name: { $regex: search, $options: "i" } }, { contactPerson: { $regex: search, $options: "i" } }];
+
+    if (from || to) {
+        const { getClinicDayBounds, getClinicTimezone } = await import("@/lib/time-utils");
+        const tz = await getClinicTimezone();
+        filter.createdAt = {};
+        if (from) {
+            const bounds = getClinicDayBounds(from, tz);
+            (filter.createdAt as Record<string, unknown>).$gte = bounds.start;
+        }
+        if (to) {
+            const bounds = getClinicDayBounds(to, tz);
+            (filter.createdAt as Record<string, unknown>).$lte = bounds.end;
+        }
+    }
+
     const [suppliers, total] = await Promise.all([
         Supplier.find(filter).skip(skip).limit(limit).sort({ name: 1 }).lean(),
         Supplier.countDocuments(filter),

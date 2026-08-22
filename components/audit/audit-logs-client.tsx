@@ -184,13 +184,12 @@ export function AuditLogsClient() {
                     <Td className="text-gray-400 font-mono text-[11px]">{log.ipAddress || "—"}</Td>
                     <Td><StatusBadge status={log.status} /></Td>
                     <Td className="text-right">
-                      <button
+                      <Button
+                        size="sm"
                         onClick={() => setViewLog(log)}
-                        className="p-1.5 hover:bg-teal-50 text-gray-400 hover:text-teal-700 rounded-lg cursor-pointer transition-colors"
-                        title="View Full Details"
                       >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                        View
+                      </Button>
                     </Td>
                   </tr>
                 );
@@ -230,13 +229,12 @@ export function AuditLogsClient() {
                       </span>
                     )}
                   </div>
-                  <button
+                  <Button
+                    size="sm"
                     onClick={() => setViewLog(log)}
-                    className="p-1 rounded text-teal-600 cursor-pointer hover:bg-teal-50"
-                    title="View Details"
                   >
-                    <Eye className="w-4 h-4" />
-                  </button>
+                    View
+                  </Button>
                 </div>
                 <p className="text-xs text-gray-700 font-medium line-clamp-2 leading-relaxed">{log.description}</p>
                 <div className="flex items-center justify-between text-xs text-gray-400 pt-1 border-t border-gray-100">

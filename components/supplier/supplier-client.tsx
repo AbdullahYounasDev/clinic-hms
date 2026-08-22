@@ -7,10 +7,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Building2, User, X, Filter, ChevronDown, Trash2 } from "lucide-react";
+import { Plus, Search, Building2, User, X, Filter, ChevronDown, Trash2, Truck } from "lucide-react";
 import {
     Card, CardBody, Table, Th, Td, Button, Modal,
     FormField, Input, Select, EmptyState, Pagination, Badge, Alert,
+    StatCard,
 } from "@/components/ui";
 import { createSupplierSchema, CreateSupplierInput } from "@/lib/validations";
 import { useSession } from "next-auth/react";
@@ -30,6 +31,8 @@ export function SuppliersClient() {
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState("");
     const [isActiveFilter, setIsActiveFilter] = useState("");
+    const [from, setFrom] = useState("");
+    const [to, setTo] = useState("");
     const [createOpen, setCreateOpen] = useState(false);
     const [createError, setCreateError] = useState("");
     const [filtersOpen, setFiltersOpen] = useState(false);
@@ -47,10 +50,10 @@ export function SuppliersClient() {
     const canCreate = isSA || perms.includes("supplier:create");
     const canDelete = isSA || perms.includes("supplier:delete");
 
-    const activeFiltersCount = [typeFilter, isActiveFilter].filter(Boolean).length;
+    const activeFiltersCount = [typeFilter, isActiveFilter, from, to].filter(Boolean).length;
 
     const { data, isLoading } = useQuery({
-        queryKey: ["suppliers", page, search, typeFilter, isActiveFilter],
+        queryKey: ["suppliers", page, search, typeFilter, isActiveFilter, from, to],
         queryFn: () =>
             axios.get("/api/supplier", {
                 params: {
@@ -59,6 +62,8 @@ export function SuppliersClient() {
                     search: search || undefined,
                     type: typeFilter || undefined,
                     isActive: isActiveFilter || undefined,
+                    from: from || undefined,
+                    to: to || undefined,
                 },
             }).then(r => r.data),
     });
@@ -112,6 +117,13 @@ export function SuppliersClient() {
                         <Plus className="w-3.5 h-3.5" /> Add Supplier
                     </Button>
                 )}
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <StatCard title="Total Suppliers" value={pagination?.total ?? 0} icon={Truck} loading={isLoading} />
+                <StatCard title="Active Suppliers" value={suppliers.filter(s => s.isActive).length} icon={Building2} loading={isLoading} />
+                <StatCard title="Inactive" value={suppliers.filter(s => !s.isActive).length} icon={Building2} loading={isLoading} />
             </div>
 
             {/* Search + Filter Toggle */}
@@ -173,8 +185,24 @@ export function SuppliersClient() {
                             </button>
                         </span>
                     )}
+                    {from && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+                            From: {from}
+                            <button onClick={() => { setFrom(""); setPage(1); }} className="cursor-pointer">
+                                <X className="w-3 h-3" />
+                            </button>
+                        </span>
+                    )}
+                    {to && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+                            To: {to}
+                            <button onClick={() => { setTo(""); setPage(1); }} className="cursor-pointer">
+                                <X className="w-3 h-3" />
+                            </button>
+                        </span>
+                    )}
                     <button
-                        onClick={() => { setTypeFilter(""); setIsActiveFilter(""); setPage(1); }}
+                        onClick={() => { setTypeFilter(""); setIsActiveFilter(""); setFrom(""); setTo(""); setPage(1); }}
                         className="text-xs text-gray-400 cursor-pointer"
                     >
                         Clear all
@@ -185,7 +213,7 @@ export function SuppliersClient() {
             {/* Expanded Filters */}
             {filtersOpen && (
                 <div className="bg-gray-50 rounded-lg border border-gray-300 p-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                         <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1.5">Type</label>
                             <Select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1); }}>
@@ -201,6 +229,14 @@ export function SuppliersClient() {
                                 <option value="true">Active</option>
                                 <option value="false">Inactive</option>
                             </Select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1.5">From Date</label>
+                            <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1.5">To Date</label>
+                            <Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }} />
                         </div>
                     </div>
                 </div>

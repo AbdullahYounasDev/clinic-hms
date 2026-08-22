@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
     const invoiceType = sp.get("invoiceType") || "";
     const status = sp.get("status") || "";
     const patientId = sp.get("patient") || "";
-    const dateFrom = sp.get("dateFrom") || "";
-    const dateTo = sp.get("dateTo") || "";
+    const from = sp.get("from") || sp.get("dateFrom") || "";
+    const to = sp.get("to") || sp.get("dateTo") || "";
 
     const filter: Record<string, unknown> = {};
     if (invoiceType) filter.invoiceType = invoiceType;
@@ -41,10 +41,18 @@ export async function GET(req: NextRequest) {
             { patient: { $in: patientIds } }
         ];
     }
-    if (dateFrom || dateTo) {
+    if (from || to) {
+        const { getClinicDayBounds, getClinicTimezone } = await import("@/lib/time-utils");
+        const tz = await getClinicTimezone();
         filter.createdAt = {};
-        if (dateFrom) (filter.createdAt as Record<string, unknown>).$gte = new Date(dateFrom);
-        if (dateTo) (filter.createdAt as Record<string, unknown>).$lte = new Date(dateTo);
+        if (from) {
+            const bounds = getClinicDayBounds(from, tz);
+            (filter.createdAt as Record<string, unknown>).$gte = bounds.start;
+        }
+        if (to) {
+            const bounds = getClinicDayBounds(to, tz);
+            (filter.createdAt as Record<string, unknown>).$lte = bounds.end;
+        }
     }
 
     const [invoices, total, summary] = await Promise.all([

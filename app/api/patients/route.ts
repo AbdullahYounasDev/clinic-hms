@@ -23,11 +23,28 @@ export async function GET(req: NextRequest) {
   const search = sp.get("search") || "";
   const status = sp.get("status") || "";
   const bloodGroup = sp.get("bloodGroup") || "";
+  const from = sp.get("from") || "";
+  const to = sp.get("to") || "";
 
   const filter: Record<string, unknown> = {};
 
   applyPatientStatusFilter(filter, status);
   if (bloodGroup) filter.bloodGroup = bloodGroup;
+
+  if (from || to) {
+    const { getClinicDayBounds, getClinicTimezone } = await import("@/lib/time-utils");
+    const tz = await getClinicTimezone();
+    filter.createdAt = {};
+    if (from) {
+      const bounds = getClinicDayBounds(from, tz);
+      (filter.createdAt as Record<string, unknown>).$gte = bounds.start;
+    }
+    if (to) {
+      const bounds = getClinicDayBounds(to, tz);
+      (filter.createdAt as Record<string, unknown>).$lte = bounds.end;
+    }
+  }
+
   if (search) {
     const rawSearch = search.trim();
     const cleanSearch = normalizeCNIC(rawSearch);

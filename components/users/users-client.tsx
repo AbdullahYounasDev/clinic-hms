@@ -41,6 +41,8 @@ export function UsersClient() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [tempPassword, setTempPassword] = useState("");
@@ -55,12 +57,20 @@ export function UsersClient() {
   const canCreate = isSA || perms.includes("users:create");
   const canDelete = isSA || perms.includes("users:delete");
 
-  const activeFiltersCount = [statusFilter, roleFilter].filter(Boolean).length;
+  const activeFiltersCount = [statusFilter, roleFilter, from, to].filter(Boolean).length;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["users", page, search, statusFilter, roleFilter],
+    queryKey: ["users", page, search, statusFilter, roleFilter, from, to],
     queryFn: () => axios.get("/api/users", {
-      params: { page, limit: 20, search: search || undefined, status: statusFilter || undefined, role: roleFilter || undefined },
+      params: {
+        page,
+        limit: 20,
+        search: search || undefined,
+        status: statusFilter || undefined,
+        role: roleFilter || undefined,
+        from: from || undefined,
+        to: to || undefined,
+      },
     }).then(r => r.data),
   });
 
@@ -118,18 +128,19 @@ export function UsersClient() {
           throw new Error(`User account created, but doctor profile failed: ${msg}`);
         }
       }
-      return userRes;
+      return userRes.data;
     },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["users"] });
-      qc.invalidateQueries({ queryKey: ["doctors"] });
-      if (res.data.data.tempPassword) setTempPassword(res.data.data.tempPassword);
+      setTempPassword(res.data?.tempPassword || "");
+      setCreateOpen(false);
       resetAll();
       toast.success("User created successfully!");
     },
     onError: (e: unknown) => {
-      const msg = (e as Error)?.message || (e as any)?.response?.data?.error || "Failed to create user";
-      setCreateError(msg); toast.error(msg);
+      const msg = (e as any)?.response?.data?.error || (e as any)?.message || "Failed";
+      setCreateError(msg);
+      toast.error(msg);
     },
   });
 
@@ -191,16 +202,20 @@ export function UsersClient() {
         <div className="flex items-center gap-2 flex-wrap">
           {statusFilter && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700 capitalize">{statusFilter}<button onClick={() => { setStatusFilter(""); setPage(1); }} className="cursor-pointer"><X className="w-3 h-3" /></button></span>}
           {roleFilter && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">{roles.find((r: any) => r._id === roleFilter)?.name || roleFilter}<button onClick={() => { setRoleFilter(""); setPage(1); }} className="cursor-pointer"><X className="w-3 h-3" /></button></span>}
-          <button onClick={() => { setStatusFilter(""); setRoleFilter(""); setPage(1); }} className="text-xs text-gray-400 cursor-pointer">Clear all</button>
+          {from && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">From: {from}<button onClick={() => { setFrom(""); setPage(1); }} className="cursor-pointer"><X className="w-3 h-3" /></button></span>}
+          {to && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">To: {to}<button onClick={() => { setTo(""); setPage(1); }} className="cursor-pointer"><X className="w-3 h-3" /></button></span>}
+          <button onClick={() => { setStatusFilter(""); setRoleFilter(""); setFrom(""); setTo(""); setPage(1); }} className="text-xs text-gray-400 cursor-pointer">Clear all</button>
         </div>
       )}
 
       {/* Expanded Filters */}
       {filtersOpen && (
         <div className="bg-gray-50 rounded-lg border border-gray-300 p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div><label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label><Select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}><option value="">All Statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="suspended">Suspended</option></Select></div>
             <div><label className="block text-xs font-medium text-gray-600 mb-1.5">Role</label><Select value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); }}><option value="">All Roles</option>{roles.map((r: any) => <option key={r._id} value={r._id}>{r.name}</option>)}</Select></div>
+            <div><label className="block text-xs font-medium text-gray-600 mb-1.5">From Date</label><Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} /></div>
+            <div><label className="block text-xs font-medium text-gray-600 mb-1.5">To Date</label><Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }} /></div>
           </div>
         </div>
       )}

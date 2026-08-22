@@ -18,6 +18,10 @@ export async function GET(req: NextRequest) {
   const lowStock = sp.get("lowStock") === "true";
   const category = sp.get("category");
   const isActive = sp.get("isActive");
+  const from = sp.get("from") || "";
+  const to = sp.get("to") || "";
+  const dateField = sp.get("dateField") === "expiryDate" ? "expiryDate" : "createdAt";
+
   const filter: Record<string, unknown> = {};
   applyIsActiveFilter(filter, isActive);
   if (search) {
@@ -29,6 +33,21 @@ export async function GET(req: NextRequest) {
   }
   if (lowStock) filter.$expr = { $lte: ["$currentStock", "$minStockLevel"] };
   if (category) filter.category = category;
+
+  if (from || to) {
+    const { getClinicDayBounds, getClinicTimezone } = await import("@/lib/time-utils");
+    const tz = await getClinicTimezone();
+    filter[dateField] = {};
+    if (from) {
+      const bounds = getClinicDayBounds(from, tz);
+      (filter[dateField] as Record<string, unknown>).$gte = bounds.start;
+    }
+    if (to) {
+      const bounds = getClinicDayBounds(to, tz);
+      (filter[dateField] as Record<string, unknown>).$lte = bounds.end;
+    }
+  }
+
   const [medicines, total] = await Promise.all([
     Medicine.find(filter).skip(skip).limit(limit).sort({ name: 1 }).lean(),
     Medicine.countDocuments(filter),

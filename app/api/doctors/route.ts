@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
   const departmentId = sp.get("department") || "";
   const isAvailable = sp.get("isAvailable");
   const status = sp.get("status") || "";
+  const from = sp.get("from") || "";
+  const to = sp.get("to") || "";
 
   const filter: Record<string, unknown> = {};
   applyRecordStatusFilter(filter, status || null);
@@ -30,6 +32,20 @@ export async function GET(req: NextRequest) {
   // Availability filter
   if (isAvailable !== undefined && isAvailable !== null && isAvailable !== "") {
     filter.isAvailable = isAvailable === "true";
+  }
+
+  if (from || to) {
+    const { getClinicDayBounds, getClinicTimezone } = await import("@/lib/time-utils");
+    const tz = await getClinicTimezone();
+    filter.createdAt = {};
+    if (from) {
+      const bounds = getClinicDayBounds(from, tz);
+      (filter.createdAt as Record<string, unknown>).$gte = bounds.start;
+    }
+    if (to) {
+      const bounds = getClinicDayBounds(to, tz);
+      (filter.createdAt as Record<string, unknown>).$lte = bounds.end;
+    }
   }
 
   // Search by name, email, specialization, or doctor ID

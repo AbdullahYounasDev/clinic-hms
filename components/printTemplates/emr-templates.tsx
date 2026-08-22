@@ -158,10 +158,23 @@ function extractAllMedicines(prescriptions?: any[]): any[] {
   return result;
 }
 
+function extractRxNotes(prescriptions?: any[]): string[] {
+  const notes: string[] = [];
+  if (Array.isArray(prescriptions)) {
+    prescriptions.forEach((rx: any) => {
+      if (rx?.notes && typeof rx.notes === "string" && rx.notes.trim()) {
+        notes.push(rx.notes.trim());
+      }
+    });
+  }
+  return notes;
+}
+
 export function EMRPdfTemplate({ record, logoUrl, clinicDetails }: { record: any; logoUrl?: string; clinicDetails?: PrintClinicDetails }) {
   const r = record || {};
   const clinic = resolveClinic(clinicDetails, logoUrl);
   const allMedicines = extractAllMedicines(r.prescriptions);
+  const rxNotes = extractRxNotes(r.prescriptions);
   const doctorName = getDoctorName(r.doctor);
   const doctorEmail = getDoctorEmail(r.doctor);
 
@@ -290,6 +303,14 @@ export function EMRPdfTemplate({ record, logoUrl, clinicDetails }: { record: any
                   <Text style={[pdfStyles.tableCell, pdfStyles.colIns]}>{m.instructions || "—"}</Text>
                 </View>
               ))}
+              {rxNotes.length > 0 && (
+                <View style={{ marginTop: 6, paddingTop: 4 }}>
+                  <Text style={{ fontSize: 7, fontWeight: "bold", color: COLORS.primary, textTransform: "uppercase", marginBottom: 2 }}>Prescription Notes</Text>
+                  {rxNotes.map((note: string, idx: number) => (
+                    <Text key={idx} style={pdfStyles.textBlock}>{rxNotes.length > 1 ? `• ${note}` : note}</Text>
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -313,6 +334,7 @@ export function generateEMRPrintHtml(record: any, logoUrl?: string, clinicDetail
   const r = record || {};
   const clinic = resolveClinic(clinicDetails, logoUrl);
   const allMedicines = extractAllMedicines(r.prescriptions);
+  const rxNotes = extractRxNotes(r.prescriptions);
   const doctorName = getDoctorName(r.doctor);
   const doctorEmail = getDoctorEmail(r.doctor);
 
@@ -351,7 +373,7 @@ export function generateEMRPrintHtml(record: any, logoUrl?: string, clinicDetail
   ${vitalsHtml ? `<div class="section"><div class="label">Vitals</div><div class="vitals-grid">${vitalsHtml}</div></div>` : ""}
   ${r.diagnosis?.length > 0 ? `<div class="section"><div class="label">Diagnosis</div>${r.diagnosis.map((d: any) => `<div class="diag-row"><span class="badge ${d.type === 'primary' ? 'badge-primary' : 'badge-secondary'}">${d.type}</span><span style="font-size:10px;color:#333;">${d.description}</span>${d.icdCode ? `<span style="font-size:9px;color:#888;">ICD: ${d.icdCode}</span>` : ""}</div>`).join("")}</div>` : ""}
   ${r.treatmentPlan ? `<div class="section"><div class="label">Treatment Plan</div><div class="value" style="white-space:pre-wrap;">${r.treatmentPlan}</div></div>` : ""}
-  ${allMedicines.length > 0 ? `<div class="section"><div class="label">Prescriptions</div><table class="rx-table"><thead><tr><th>Medicine</th><th>Strength</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Route</th><th>Qty</th><th>Instructions</th></tr></thead><tbody>${allMedicines.map((m: any) => `<tr><td>${getMedName(m)}</td><td>${m.strength || "—"}</td><td>${m.dosage || "—"}</td><td>${m.frequency || "—"}</td><td>${getMedDuration(m)}</td><td>${m.route || "—"}</td><td>${m.quantity || "—"}</td><td>${m.instructions || "—"}</td></tr>`).join("")}</tbody></table></div>` : ""}
+  ${allMedicines.length > 0 ? `<div class="section"><div class="label">Prescriptions</div><table class="rx-table"><thead><tr><th>Medicine</th><th>Strength</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Route</th><th>Qty</th><th>Instructions</th></tr></thead><tbody>${allMedicines.map((m: any) => `<tr><td>${getMedName(m)}</td><td>${m.strength || "—"}</td><td>${m.dosage || "—"}</td><td>${m.frequency || "—"}</td><td>${getMedDuration(m)}</td><td>${m.route || "—"}</td><td>${m.quantity || "—"}</td><td>${m.instructions || "—"}</td></tr>`).join("")}</tbody></table>${rxNotes.length > 0 ? `<div style="margin-top:8px;padding-top:6px;border-top:1px dashed #e5e5e5;"><div class="label" style="color:${COLORS.primary};">Prescription Notes</div><div class="value" style="font-size:9.5px;color:#444;white-space:pre-wrap;background:#f9fafb;padding:6px 8px;border-radius:4px;border:1px solid #e5e7eb;margin-top:3px;">${rxNotes.map((n: string) => rxNotes.length > 1 ? `• ${n}` : n).join('<br/>')}</div></div>` : ""}</div>` : ""}
   ${r.notes ? `<div class="section-last"><div class="label">Notes</div><div class="value" style="white-space:pre-wrap;">${r.notes}</div></div>` : ""}
   <div class="footer">Computer-generated medical record • ${clinic.name} • ${formatDate(new Date().toISOString())}</div>
   </body></html>`;

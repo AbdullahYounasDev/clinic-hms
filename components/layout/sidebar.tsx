@@ -13,6 +13,8 @@ import {
   Sparkles,
   Hospital,
   X,
+  Network,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { useSidebar } from "../sidebar-context";
@@ -47,7 +49,8 @@ const NAV_ITEMS: NavItem[] = [
 
 const ADMIN_ITEMS: NavItem[] = [
   { label: "Users", href: "/users", icon: Shield, permission: "users:view", category: "Administration" },
-  { label: "Roles", href: "/roles", icon: Building2, permission: "roles:view", category: "Administration" },
+  { label: "Departments", href: "/departments", icon: Network, permission: "departments:view", category: "Administration" },
+  { label: "Roles", href: "/roles", icon: ShieldCheck, permission: "roles:view", category: "Administration" },
   { label: "Audit Logs", href: "/audit-logs", icon: ScrollText, permission: "audit_logs:view", category: "Administration" },
   { label: "Settings", href: "/settings", icon: Settings, permission: "settings:view", category: "Administration" },
 ];

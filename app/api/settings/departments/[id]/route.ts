@@ -10,7 +10,10 @@ interface Params { params: Promise<{ id: string }> }
 export async function PUT(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session) return apiError("Unauthorized", 401);
-  if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "settings", "update")) {
+  const canUpdate =
+    hasPermission(session.user.permissions, session.user.isSuperAdmin, "departments", "update") ||
+    hasPermission(session.user.permissions, session.user.isSuperAdmin, "settings", "update");
+  if (!canUpdate) {
     return apiError("Forbidden", 403);
   }
 
@@ -37,7 +40,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   await auditLog({
     userId: session.user.id,
     action: "update",
-    module: "settings",
+    module: "departments",
     description: `Updated department: ${existing.name} (${existing.code})`,
     resourceId: id,
     resourceType: "Department",
@@ -50,7 +53,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
 export async function DELETE(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session) return apiError("Unauthorized", 401);
-  if (!hasPermission(session.user.permissions, session.user.isSuperAdmin, "settings", "update")) {
+  const canDelete =
+    hasPermission(session.user.permissions, session.user.isSuperAdmin, "departments", "delete") ||
+    hasPermission(session.user.permissions, session.user.isSuperAdmin, "settings", "update");
+  if (!canDelete) {
     return apiError("Forbidden", 403);
   }
 
@@ -70,7 +76,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   await auditLog({
     userId: session.user.id,
     action: "delete",
-    module: "settings",
+    module: "departments",
     description: `Archived department: ${department?.name} (${department?.code})`,
     resourceId: id,
     resourceType: "Department",

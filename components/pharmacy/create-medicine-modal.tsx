@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
-import { Html5Qrcode } from "html5-qrcode";
+import { ZxingBarcodeScanner } from "@/lib/utils/barcode";
 import {
     Modal,
     FormField,
@@ -16,7 +16,7 @@ import {
     Button,
 } from "@/components/ui";
 import { createMedicineSchema, CreateMedicineInput } from "@/lib/validations";
-import { ScanLine, PenLine, Loader2, Camera } from "lucide-react";
+import { ScanLine, PenLine, Loader2, Camera, Flashlight } from "lucide-react";
 import { toast } from "sonner";
 
 interface MedicineCreateModalProps {
@@ -26,21 +26,22 @@ interface MedicineCreateModalProps {
 
 type TabKey = "manual" | "scan";
 
-const SCANNER_ELEMENT_ID = "medicine-barcode-scanner";
-
 export function MedicineCreateModal({ open, onClose }: MedicineCreateModalProps) {
     const qc = useQueryClient();
     const [createError, setCreateError] = useState("");
     const [activeTab, setActiveTab] = useState<TabKey>("manual");
 
     // --- Scanner state ---
-    const scannerRef = useRef<Html5Qrcode | null>(null);
+    const scannerRef = useRef<ZxingBarcodeScanner | null>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
     const [scannerStarting, setScannerStarting] = useState(false);
     const [scannerError, setScannerError] = useState("");
     const [checkingBarcode, setCheckingBarcode] = useState(false);
     const [existingMedicine, setExistingMedicine] = useState<{ _id: string; name: string; genericName: string; currentStock: number } | null>(null);
     const [scannedBarcode, setScannedBarcode] = useState("");
     const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
+    const [hasTorch, setHasTorch] = useState(false);
+    const [isTorchOn, setIsTorchOn] = useState(false);
 
     const { data: suppliersData } = useQuery({
         queryKey: ["suppliers-active"],
@@ -68,25 +69,19 @@ export function MedicineCreateModal({ open, onClose }: MedicineCreateModalProps)
     });
 
     // --- Stop camera safely ---
-    const stopScanner = useCallback(async () => {
+    const stopScanner = useCallback(() => {
         if (scannerRef.current) {
-            try {
-                const state = scannerRef.current.getState();
-                if (state === 2) {
-                    await scannerRef.current.stop();
-                }
-                scannerRef.current.clear();
-            } catch {
-                // ignore
-            }
+            scannerRef.current.stop();
             scannerRef.current = null;
         }
+        setHasTorch(false);
+        setIsTorchOn(false);
     }, []);
 
     // --- Handle a successful decode ---
     const handleScanSuccess = useCallback(async (decodedText: string) => {
         if (checkingBarcode) return;
-        await stopScanner();
+        stopScanner();
 
         const rawCode = decodedText.trim();
         const { parseBarcodeData } = await import("@/lib/utils/barcode-parser");
@@ -133,51 +128,59 @@ export function MedicineCreateModal({ open, onClose }: MedicineCreateModalProps)
     // --- Start camera when scan tab is active and modal is open ---
     useEffect(() => {
         if (!open || activeTab !== "scan") {
+            stopScanner();
             return;
         }
 
-        // Wait for DOM to render the scanner element
-        const timer = setTimeout(() => {
-            const el = document.getElementById(SCANNER_ELEMENT_ID);
-            if (!el) {
-                setCameraPermissionDenied(true);
-                setScannerError("Scanner element not found. Please try again.");
-                return;
-            }
+        let isMounted = true;
+        const scanner = new ZxingBarcodeScanner();
+        scannerRef.current = scanner;
+        setScannerStarting(true);
+        setScannerError("");
+        setCameraPermissionDenied(false);
 
-            setScannerError("");
-            setCameraPermissionDenied(false);
-            setScannerStarting(true);
-
-            const instance = new Html5Qrcode(SCANNER_ELEMENT_ID);
-            scannerRef.current = instance;
-
-            instance
-                .start(
-                    { facingMode: "environment" },
-                    { fps: 10, qrbox: { width: 260, height: 160 } },
-                    (decodedText) => {
-                        handleScanSuccess(decodedText);
+        const timer = setTimeout(async () => {
+            if (!isMounted || !videoRef.current) return;
+            try {
+                await scanner.start(videoRef.current, {
+                    preferredFacingMode: "environment",
+                    onScan: (result) => {
+                        if (isMounted) handleScanSuccess(result.text);
                     },
-                    () => {
-                        // per-frame miss — ignore
-                    }
-                )
-                .then(() => {
-                    setScannerStarting(false);
-                })
-                .catch(() => {
-                    setScannerStarting(false);
-                    setCameraPermissionDenied(true);
+                    onError: (err) => {
+                        if (!isMounted) return;
+                        const errStr = String(err);
+                        if (/permission|notallowed/i.test(errStr)) {
+                            setCameraPermissionDenied(true);
+                        } else {
+                            setScannerError("Unable to access camera. Please check camera permissions.");
+                        }
+                    },
+                    onReady: () => {
+                        if (!isMounted) return;
+                        setScannerStarting(false);
+                        const caps = scanner.getCapabilities();
+                        setHasTorch(caps.hasTorch);
+                    },
                 });
-        }, 100);
+            } catch (err: unknown) {
+                if (!isMounted) return;
+                const errStr = String(err);
+                setScannerStarting(false);
+                if (/permission|notallowed/i.test(errStr)) {
+                    setCameraPermissionDenied(true);
+                } else {
+                    setScannerError("Failed to start camera. Please verify device camera is available.");
+                }
+            }
+        }, 80);
 
         return () => {
+            isMounted = false;
             clearTimeout(timer);
-            stopScanner();
+            scanner.stop();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, activeTab]);
+    }, [open, activeTab, handleScanSuccess, stopScanner]);
 
     // --- Cleanup on unmount ---
     useEffect(() => {
@@ -185,6 +188,13 @@ export function MedicineCreateModal({ open, onClose }: MedicineCreateModalProps)
             stopScanner();
         };
     }, [stopScanner]);
+
+    const handleToggleTorch = async () => {
+        if (scannerRef.current) {
+            const nextState = await scannerRef.current.toggleTorch();
+            setIsTorchOn(nextState);
+        }
+    };
 
     const handleClose = () => {
         stopScanner();
@@ -203,9 +213,7 @@ export function MedicineCreateModal({ open, onClose }: MedicineCreateModalProps)
         setScannedBarcode("");
         setCameraPermissionDenied(false);
         setScannerError("");
-        // Force re-render the scanner by toggling tab
-        setActiveTab("manual");
-        setTimeout(() => setActiveTab("scan"), 50);
+        setActiveTab("scan");
     };
 
     return (
@@ -276,11 +284,39 @@ export function MedicineCreateModal({ open, onClose }: MedicineCreateModalProps)
                         <>
                             {scannerError && <Alert type="error">{scannerError}</Alert>}
 
-                            <div className="relative rounded-lg overflow-hidden border border-gray-300 bg-gray-50">
-                                <div id={SCANNER_ELEMENT_ID} className="w-full min-h-[260px]" />
+                            <div className="relative rounded-lg overflow-hidden border border-gray-300 bg-gray-900">
+                                <div className="relative w-full h-[260px] flex items-center justify-center overflow-hidden">
+                                    <video
+                                        ref={videoRef}
+                                        className="w-full h-full object-cover"
+                                        playsInline
+                                        muted
+                                    />
+                                    {/* Overlay reticle for barcode alignment */}
+                                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                                        <div className="w-64 h-36 border-2 border-teal-500 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)] relative">
+                                            <div className="absolute inset-x-0 top-1/2 h-0.5 bg-teal-400/60 shadow-[0_0_8px_rgba(20,184,166,0.8)]" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {hasTorch && (
+                                    <div className="absolute top-2 right-2 z-10">
+                                        <button
+                                            type="button"
+                                            onClick={handleToggleTorch}
+                                            className={`p-2 rounded-full text-xs font-medium cursor-pointer shadow transition-colors ${
+                                                isTorchOn ? "bg-amber-400 text-gray-900" : "bg-black/60 text-white hover:bg-black/80"
+                                            }`}
+                                            title="Toggle Flashlight"
+                                        >
+                                            <Flashlight className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
 
                                 {(scannerStarting || checkingBarcode) && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+                                    <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-20">
                                         <div className="flex items-center gap-2 text-gray-600 text-xs">
                                             <Loader2 className="w-4 h-4 animate-spin" />
                                             {checkingBarcode ? "Checking barcode..." : "Starting camera..."}
@@ -292,14 +328,6 @@ export function MedicineCreateModal({ open, onClose }: MedicineCreateModalProps)
                             <p className="text-xs text-gray-400 text-center">
                                 Align the barcode within the frame. It will scan automatically.
                             </p>
-
-                            <style jsx global>{`
-                                #${SCANNER_ELEMENT_ID} > div:first-child > div {
-                                    border: 3px solid #0d9488 !important;
-                                    border-radius: 8px !important;
-                                    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
-                                }
-                            `}</style>
                         </>
                     )}
                 </div>

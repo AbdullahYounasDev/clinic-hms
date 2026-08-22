@@ -47,15 +47,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return apiError("Lab test not found", 404);
   }
 
-  // Auto-sync isPaid if an invoice exists and is paid
+  // Auto-sync isPaid if an invoice exists and is paid for this specific test
   if (!test.isPaid) {
     const { Invoice } = await import("@/models/operations.model");
-    const testPatientId = typeof test.patient === "object" ? (test.patient as any)._id : test.patient;
     const testInvoiceId = typeof test.invoiceId === "object" ? (test.invoiceId as any)?._id : test.invoiceId;
 
     const queryOr: any[] = [{ "items.labOrderId": test._id }];
     if (testInvoiceId) queryOr.push({ _id: testInvoiceId });
-    if (testPatientId) queryOr.push({ patient: testPatientId, invoiceType: "lab" });
 
     const matchingInvoice = await Invoice.findOne({
       $or: queryOr,

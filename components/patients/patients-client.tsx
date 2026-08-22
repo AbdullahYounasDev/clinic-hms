@@ -77,6 +77,8 @@ export function PatientsClient() {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -102,7 +104,7 @@ export function PatientsClient() {
   const canCreate = isSA || perms.includes("patients:create");
   const canDelete = isSA || perms.includes("patients:delete");
 
-  const activeFiltersCount = [statusFilter].filter(Boolean).length;
+  const activeFiltersCount = [statusFilter, from, to].filter(Boolean).length;
 
   // Search Debouncing (300ms)
   useEffect(() => {
@@ -113,10 +115,19 @@ export function PatientsClient() {
   }, [searchInput]);
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["patients", page, debouncedSearch, statusFilter],
+    queryKey: ["patients", page, debouncedSearch, statusFilter, from, to],
     queryFn: () =>
       axios
-        .get("/api/patients", { params: { page, limit: 20, search: debouncedSearch || undefined, status: statusFilter || undefined } })
+        .get("/api/patients", { 
+          params: { 
+            page, 
+            limit: 20, 
+            search: debouncedSearch || undefined, 
+            status: statusFilter || undefined,
+            from: from || undefined,
+            to: to || undefined
+          } 
+        })
         .then((r) => r.data),
   });
 
@@ -304,8 +315,24 @@ export function PatientsClient() {
               </button>
             </span>
           )}
+          {from && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              From: {from}
+              <button onClick={() => { setFrom(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {to && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
+              To: {to}
+              <button onClick={() => { setTo(""); setPage(1); }} className="cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
           <button
-            onClick={() => { setStatusFilter(""); setPage(1); }}
+            onClick={() => { setStatusFilter(""); setFrom(""); setTo(""); setPage(1); }}
             className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer"
           >
             Clear all
@@ -316,14 +343,24 @@ export function PatientsClient() {
       {/* Expanded Filters */}
       {filtersOpen && (
         <div className="bg-gray-50 rounded-lg border border-gray-300 p-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
-            <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
-              <option value="">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-              <option value="deceased">Deceased</option>
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
+              <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+                <option value="deceased">Deceased</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">From Registration Date</label>
+              <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">To Registration Date</label>
+              <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
+            </div>
           </div>
         </div>
       )}

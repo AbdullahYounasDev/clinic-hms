@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
   const search = sp.get("search") || "";
   const patient = sp.get("patient") || "";
   const doctorId = sp.get("doctor") || "";
-  const fromDate = sp.get("fromDate") || "";
-  const toDate = sp.get("toDate") || "";
+  const fromDate = sp.get("from") || sp.get("fromDate") || "";
+  const toDate = sp.get("to") || sp.get("toDate") || "";
 
   const filter: Record<string, unknown> = { status: { $ne: "archived" } };
 
@@ -127,8 +127,13 @@ export async function POST(req: NextRequest) {
     doctor = await Doctor.findOne({ user: session.user.id, status: { $ne: "archived" } });
   }
 
+  // Fallback for SuperAdmin / Admin / Staff without direct Doctor profile
+  if (!doctor && (session.user.isSuperAdmin || hasPermission(session.user.permissions, session.user.isSuperAdmin, "emr", "create"))) {
+    doctor = await Doctor.findOne({ status: { $ne: "archived" } });
+  }
+
   if (!doctor) {
-    return apiError("Doctor profile not found for this consultation. Please specify a doctor.", 404);
+    return apiError("No active doctor profile found in the system. Please create a doctor first.", 404);
   }
 
   // Create EMR record
