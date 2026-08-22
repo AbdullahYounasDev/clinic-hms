@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
@@ -18,6 +18,9 @@ import { formatCNIC, normalizeCNIC } from "@/lib/utils/cnic-utils";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+import { usePatients, usePatientDb } from "@/lib/rxdb/hooks";
+import { generateShortTempId } from "@/lib/rxdb/patient-sync";
+import { SyncStatusBadge } from "./sync-status-badge";
 
 interface Patient {
   _id: string;
@@ -27,7 +30,7 @@ interface Patient {
   fullName: string;
   gender: string;
   dateOfBirth: string;
-  phone: string;
+  phone?: string;
   cnic?: string;
   email?: string;
   bloodGroup?: string;
@@ -72,6 +75,7 @@ function OptionalToggleHeader({
 export function PatientsClient() {
   const { data: session } = useSession();
   const qc = useQueryClient();
+  const collection = usePatientDb();
 
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
@@ -92,11 +96,6 @@ export function PatientsClient() {
   const [enablePortal, setEnablePortal] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
 
-  const [phoneWarning, setPhoneWarning] = useState<{ isDuplicate: boolean; matches: any[] }>({
-    isDuplicate: false,
-    matches: [],
-  });
-
   const perms = session?.user.permissions || [];
   const isSA = session?.user.isSuperAdmin;
   const canCreate = isSA || perms.includes("patients:create");
@@ -112,16 +111,36 @@ export function PatientsClient() {
     return () => clearTimeout(handler);
   }, [searchInput]);
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["patients", page, debouncedSearch, statusFilter],
-    queryFn: () =>
-      axios
-        .get("/api/patients", { params: { page, limit: 20, search: debouncedSearch || undefined, status: statusFilter || undefined } })
-        .then((r) => r.data),
+  // ── RxDB reactive patient list (offline-first) ──────────────────────────
+  const { patients: rxPatients, isLoading } = usePatients({
+    search: debouncedSearch,
+    status: statusFilter,
+    limit: 500,
   });
 
-  const patients: Patient[] = data?.data || [];
-  const pagination = data?.pagination;
+  // Map LocalPatient → Patient interface expected by the rest of the JSX
+  const patients: Patient[] = rxPatients.map((p) => ({
+    _id: p.id,
+    patientId: p.patientId,
+    firstName: p.firstName,
+    lastName: p.lastName,
+    fullName: `${p.firstName} ${p.lastName}`,
+    gender: p.gender,
+    dateOfBirth: p.dateOfBirth,
+    phone: p.phone,
+    cnic: p.cnic,
+    email: p.email,
+    bloodGroup: p.bloodGroup,
+    status: p.status,
+    createdAt: String(p.createdAt),
+  }));
+
+  // Client-side pagination (RxDB already does local search/filter)
+  const PAGE_SIZE = 20;
+  const totalRx = patients.length;
+  const totalPagesRx = Math.max(1, Math.ceil(totalRx / PAGE_SIZE));
+  const pagedPatients = patients.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pagination = { total: totalRx, totalPages: totalPagesRx };
 
   const {
     register,
@@ -134,29 +153,7 @@ export function PatientsClient() {
 
   const watchedAllergies = useWatch({ control, name: "allergies" });
   const watchedChronicDiseases = useWatch({ control, name: "chronicDiseases" });
-  const watchedPhone = useWatch({ control, name: "phone" });
   const rawCnic = useWatch({ control, name: "cnic" });
-
-  // Non-blocking duplicate phone warning
-  useEffect(() => {
-    if (!watchedPhone || watchedPhone.length < 5) {
-      setPhoneWarning({ isDuplicate: false, matches: [] });
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const res = await axios.get("/api/patients/check-duplicate-phone", {
-          params: { phone: watchedPhone },
-        });
-        if (res.data?.data) {
-          setPhoneWarning(res.data.data);
-        }
-      } catch {
-        // Silently catch duplicate phone check errors
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [watchedPhone]);
 
   const handleModalClose = () => {
     setCreateOpen(false);
@@ -170,38 +167,61 @@ export function PatientsClient() {
     setShowInsurance(false);
     setEnablePortal(false);
     setShowNotes(false);
-    setPhoneWarning({ isDuplicate: false, matches: [] });
   };
 
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const createMutation = useMutation({
-    mutationFn: (d: CreatePatientInput) => {
-      const cleanedData = { ...d };
-      if (cleanedData.cnic) {
-        cleanedData.cnic = normalizeCNIC(cleanedData.cnic);
-      }
-      if (!showCnic) delete cleanedData.cnic;
-      if (!showAddress) delete cleanedData.address;
-      if (!showGuardian) delete cleanedData.emergencyContact;
-      if (!showMedical) {
-        delete cleanedData.bloodGroup;
-        delete cleanedData.allergies;
-        delete cleanedData.chronicDiseases;
-      }
-      if (!showInsurance) delete cleanedData.insuranceDetails;
-      if (!enablePortal || !cleanedData.portalPassword?.trim()) delete cleanedData.portalPassword;
-      if (!showNotes) delete cleanedData.notes;
-
-      if (cleanedData.allergies?.length === 0) delete cleanedData.allergies;
-      if (cleanedData.chronicDiseases?.length === 0) delete cleanedData.chronicDiseases;
-      if (cleanedData.emergencyContact && !Object.values(cleanedData.emergencyContact).some(v => v)) delete cleanedData.emergencyContact;
-      if (cleanedData.insuranceDetails && !Object.values(cleanedData.insuranceDetails).some(v => v)) delete cleanedData.insuranceDetails;
-      if (cleanedData.address && !Object.values(cleanedData.address).some(v => v && v !== "")) delete cleanedData.address;
-      if (!cleanedData.bloodGroup) delete cleanedData.bloodGroup;
-
-      return axios.post("/api/patients", cleanedData);
-    },
-    onSuccess: () => {
+    mutationFn: (cleanedData: CreatePatientInput) => axios.post("/api/patients", cleanedData),
+    onSuccess: async (res) => {
       qc.invalidateQueries({ queryKey: ["patients"] });
+      if (collection && res?.data?.data) {
+        const p = res.data.data;
+        try {
+          await collection.upsert({
+            id: p._id ?? p.id,
+            syncStatus: "synced" as const,
+            serverPatientId: p.patientId,
+            _deleted: false,
+            patientId: p.patientId,
+            firstName: p.firstName,
+            lastName: p.lastName,
+            gender: p.gender as "male" | "female" | "other",
+            dateOfBirth:
+              typeof p.dateOfBirth === "string"
+                ? p.dateOfBirth.slice(0, 10)
+                : new Date(p.dateOfBirth).toISOString().slice(0, 10),
+            phone: p.phone,
+            email: p.email,
+            cnic: p.cnic,
+            bloodGroup: p.bloodGroup,
+            status: p.status ?? "active",
+            notes: p.notes,
+            registeredBy:
+              typeof p.registeredBy === "object" ? p.registeredBy?._id : p.registeredBy,
+            address: p.address ? JSON.stringify(p.address) : undefined,
+            emergencyContact: p.emergencyContact
+              ? JSON.stringify(p.emergencyContact)
+              : undefined,
+            allergies:
+              Array.isArray(p.allergies) && p.allergies.length > 0
+                ? JSON.stringify(p.allergies)
+                : undefined,
+            chronicDiseases:
+              Array.isArray(p.chronicDiseases) && p.chronicDiseases.length > 0
+                ? JSON.stringify(p.chronicDiseases)
+                : undefined,
+            insuranceDetails: p.insuranceDetails
+              ? JSON.stringify(p.insuranceDetails)
+              : undefined,
+            createdAt: p.createdAt ? new Date(p.createdAt).getTime() : Date.now(),
+            updatedAt: p.updatedAt ? new Date(p.updatedAt).getTime() : Date.now(),
+          });
+        } catch {
+          // Non-fatal
+        }
+      }
       handleModalClose();
       toast.success("Patient registered successfully!");
     },
@@ -210,19 +230,41 @@ export function PatientsClient() {
       setCreateError(msg);
       toast.error(msg);
     },
+    onSettled: () => {
+      setIsRegistering(false);
+    },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => axios.delete(`/api/patients/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["patients"] });
+  const handleDeletePatient = async (id: string) => {
+    setIsDeleting(true);
+    try {
+      if (collection) {
+        const doc = await collection.findOne(id).exec();
+        if (doc) {
+          if (id.startsWith("TEMP-")) {
+            // Locally-created offline patient: remove immediately from IndexedDB
+            await doc.remove();
+          } else {
+            // Synced patient: mark as deleted so push archives it on server
+            await doc.incrementalPatch({
+              _deleted: true,
+              syncStatus: "pending" as const,
+              updatedAt: Date.now(),
+            });
+          }
+        }
+      }
       setDeleteConfirm({ open: false, id: "", label: "" });
       toast.success("Patient record deleted!");
-    },
-    onError: (e: unknown) => toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to delete"),
-  });
+    } catch (err) {
+      console.error("Failed to delete patient:", err);
+      toast.error("Failed to delete patient");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
-  const onFormSubmit = (d: CreatePatientInput) => {
+  const onFormSubmit = async (d: CreatePatientInput) => {
     if (enablePortal) {
       if (!d.email) {
         setCreateError("Email is required when Patient Portal Access is enabled.");
@@ -236,7 +278,112 @@ export function PatientsClient() {
       }
     }
     setCreateError("");
-    createMutation.mutate(d);
+    const cleanedData = { ...d };
+
+    if (!showCnic || !cleanedData.cnic) delete cleanedData.cnic;
+    if (!showAddress) delete cleanedData.address;
+    if (!showGuardian) delete cleanedData.emergencyContact;
+    if (!showMedical) {
+      delete cleanedData.bloodGroup;
+      delete cleanedData.allergies;
+      delete cleanedData.chronicDiseases;
+    }
+    if (!showInsurance) delete cleanedData.insuranceDetails;
+    if (!enablePortal || !cleanedData.portalPassword?.trim()) delete cleanedData.portalPassword;
+    if (!showNotes) delete cleanedData.notes;
+
+    if (cleanedData.allergies?.length === 0) delete cleanedData.allergies;
+    if (cleanedData.chronicDiseases?.length === 0) delete cleanedData.chronicDiseases;
+    if (cleanedData.emergencyContact && !Object.values(cleanedData.emergencyContact).some((v) => v)) delete cleanedData.emergencyContact;
+    if (cleanedData.insuranceDetails && !Object.values(cleanedData.insuranceDetails).some((v) => v)) delete cleanedData.insuranceDetails;
+    if (cleanedData.address && !Object.values(cleanedData.address).some((v) => v && v !== "")) delete cleanedData.address;
+    setIsRegistering(true);
+
+    // 1. Local Pre-Validation: Check if Email or CNIC already exists in local RxDB
+    if (collection) {
+      const normalizedCnic = cleanedData.cnic ? normalizeCNIC(cleanedData.cnic) : "";
+      const lowerEmail = cleanedData.email ? cleanedData.email.trim().toLowerCase() : "";
+
+      if (lowerEmail || normalizedCnic) {
+        try {
+          const existingDocs = await collection
+            .find({
+              selector: {
+                _deleted: { $eq: false },
+              },
+            })
+            .exec();
+
+          for (const doc of existingDocs) {
+            if (lowerEmail && doc.email && doc.email.trim().toLowerCase() === lowerEmail) {
+              const patientName = `${doc.firstName} ${doc.lastName}`.trim();
+              const msg = `A patient with email "${cleanedData.email}" already exists: ${patientName} (${doc.patientId}).`;
+              setCreateError(msg);
+              toast.error(msg);
+              setIsRegistering(false);
+              return;
+            }
+
+            if (normalizedCnic && doc.cnic && normalizeCNIC(doc.cnic) === normalizedCnic) {
+              const patientName = `${doc.firstName} ${doc.lastName}`.trim();
+              const msg = `A patient with CNIC "${formatCNIC(cleanedData.cnic)}" already exists: ${patientName} (${doc.patientId}).`;
+              setCreateError(msg);
+              toast.error(msg);
+              setIsRegistering(false);
+              return;
+            }
+          }
+        } catch {
+          // Continue if query fails
+        }
+      }
+    }
+
+    // If offline, save directly to local RxDB with a TEMP ID
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      if (!collection) {
+        setCreateError("Local database is still initializing. Please wait a moment.");
+        setIsRegistering(false);
+        return;
+      }
+      const tempId = generateShortTempId();
+      try {
+        await collection.insert({
+          id: tempId,
+          syncStatus: "pending" as const,
+          _deleted: false,
+          patientId: tempId,
+          firstName: cleanedData.firstName,
+          lastName: cleanedData.lastName,
+          gender: cleanedData.gender,
+          dateOfBirth: cleanedData.dateOfBirth,
+          phone: cleanedData.phone || undefined,
+          email: cleanedData.email || undefined,
+          cnic: cleanedData.cnic ? normalizeCNIC(cleanedData.cnic) : undefined,
+          bloodGroup: cleanedData.bloodGroup || undefined,
+          status: "active",
+          notes: cleanedData.notes || undefined,
+          address: cleanedData.address ? JSON.stringify(cleanedData.address) : undefined,
+          emergencyContact: cleanedData.emergencyContact ? JSON.stringify(cleanedData.emergencyContact) : undefined,
+          allergies: cleanedData.allergies?.length ? JSON.stringify(cleanedData.allergies) : undefined,
+          chronicDiseases: cleanedData.chronicDiseases?.length ? JSON.stringify(cleanedData.chronicDiseases) : undefined,
+          insuranceDetails: cleanedData.insuranceDetails ? JSON.stringify(cleanedData.insuranceDetails) : undefined,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        handleModalClose();
+        toast.success("Patient saved locally (queued for sync when online)!");
+      } catch (err) {
+        console.error("Local save error:", err);
+        setCreateError("Failed to save patient locally.");
+      } finally {
+        setIsRegistering(false);
+      }
+      return;
+    }
+
+    // Online path
+    createMutation.mutate(cleanedData);
   };
 
   return (
@@ -244,7 +391,10 @@ export function PatientsClient() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">Patients</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold text-gray-900">Patients</h1>
+            <SyncStatusBadge />
+          </div>
           <p className="text-xs text-gray-500 mt-0.5">
             {pagination?.total ?? 0} patient{pagination?.total !== 1 ? "s" : ""}
           </p>
@@ -339,7 +489,6 @@ export function PatientsClient() {
               <Th>Gender / Age</Th>
               <Th>Blood</Th>
               <Th>Status</Th>
-              <Th>Registered</Th>
               <Th>Actions</Th>
             </tr>
           </thead>
@@ -352,7 +501,7 @@ export function PatientsClient() {
                   ))}
                 </tr>
               ))
-            ) : patients.length === 0 ? (
+            ) : pagedPatients.length === 0 ? (
               <tr>
                 <td colSpan={8}>
                   <EmptyState
@@ -367,7 +516,7 @@ export function PatientsClient() {
                 </td>
               </tr>
             ) : (
-              patients.map((p) => (
+              pagedPatients.map((p) => (
                 <tr key={p._id}>
                   <Td>
                     <span className="font-medium text-gray-900 font-mono text-xs">{p.patientId}</span>
@@ -377,7 +526,7 @@ export function PatientsClient() {
                     {p.email && <div className="text-[11px] text-gray-400">{p.email}</div>}
                   </Td>
                   <Td className="text-gray-600">
-                    <div>{p.phone}</div>
+                    <div>{p.phone || <span className="text-gray-300">—</span>}</div>
                     {p.cnic && <div className="text-[11px] text-gray-400 font-mono">{formatCNIC(p.cnic)}</div>}
                   </Td>
                   <Td className="capitalize text-gray-600">
@@ -402,7 +551,6 @@ export function PatientsClient() {
                     {p.bloodGroup ? <Badge variant="outline">{p.bloodGroup}</Badge> : <span className="text-gray-300">—</span>}
                   </Td>
                   <Td><StatusBadge status={p.status} /></Td>
-                  <Td className="text-gray-400">{formatDate(p.createdAt)}</Td>
                   <Td>
                     <div className="flex items-center gap-1">
                       <Link href={`/patients/${p._id}`}>
@@ -420,9 +568,9 @@ export function PatientsClient() {
             )}
           </tbody>
         </Table>
-        {pagination && pagination.totalPages > 1 && (
+        {totalPagesRx > 1 && (
           <div className="px-4 py-3 border-t border-gray-300 flex justify-end">
-            <Pagination page={page} totalPages={pagination.totalPages} onPage={setPage} />
+            <Pagination page={page} totalPages={totalPagesRx} onPage={setPage} />
           </div>
         )}
       </Card>
@@ -439,7 +587,7 @@ export function PatientsClient() {
               <div className="h-7 bg-gray-100 rounded w-14" />
             </div>
           ))
-        ) : patients.length === 0 ? (
+        ) : pagedPatients.length === 0 ? (
           <EmptyState
             title="No patients found"
             description={debouncedSearch ? `No results for "${debouncedSearch}"` : "Add your first patient."}
@@ -450,7 +598,7 @@ export function PatientsClient() {
             ) : undefined}
           />
         ) : (
-          patients.map((p) => (
+          pagedPatients.map((p) => (
             <div key={p._id} className="flex items-center justify-between p-3 gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -461,8 +609,12 @@ export function PatientsClient() {
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-xs text-gray-500 font-mono">{p.patientId}</span>
-                  <span className="text-xs text-gray-400">•</span>
-                  <span className="text-xs text-gray-500">{p.phone}</span>
+                  {p.phone && (
+                    <>
+                      <span className="text-xs text-gray-400">•</span>
+                      <span className="text-xs text-gray-500">{p.phone}</span>
+                    </>
+                  )}
                 </div>
                 {p.cnic && <div className="text-[10px] text-gray-400 font-mono mt-0.5">CNIC: {formatCNIC(p.cnic)}</div>}
               </div>
@@ -479,9 +631,9 @@ export function PatientsClient() {
             </div>
           ))
         )}
-        {pagination && pagination.totalPages > 1 && (
+        {totalPagesRx > 1 && (
           <div className="px-4 py-3 flex justify-center">
-            <Pagination page={page} totalPages={pagination.totalPages} onPage={setPage} />
+            <Pagination page={page} totalPages={totalPagesRx} onPage={setPage} />
           </div>
         )}
       </div>
@@ -515,27 +667,10 @@ export function PatientsClient() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Phone Number" required error={errors.phone?.message}>
+            <FormField label="Phone Number" error={errors.phone?.message}>
               <Input {...register("phone")} error={!!errors.phone} placeholder="+92 300 1234567" />
             </FormField>
           </div>
-
-          {/* Non-blocking phone duplicate warning */}
-          {phoneWarning.isDuplicate && phoneWarning.matches.length > 0 && (
-            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold">Notice:</span> Another patient shares this phone number (Shared family number):
-                <ul className="mt-1 space-y-0.5 font-medium text-amber-900">
-                  {phoneWarning.matches.map((m: any) => (
-                    <li key={m._id}>
-                      • {m.name} ({m.patientId}) — Status: <span className="capitalize">{m.status}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
 
           {/* Optional Section: CNIC */}
           <OptionalToggleHeader label="Add CNIC" checked={showCnic} onChange={setShowCnic} />
@@ -706,7 +841,7 @@ export function PatientsClient() {
             <Button type="button" variant="secondary" onClick={handleModalClose}>
               Cancel
             </Button>
-            <Button type="submit" loading={createMutation.isPending}>Register Patient</Button>
+            <Button type="submit" loading={createMutation.isPending || isRegistering}>Register Patient</Button>
           </div>
         </form>
       </Modal>
@@ -723,7 +858,7 @@ export function PatientsClient() {
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-300">
             <Button variant="secondary" onClick={() => setDeleteConfirm({ open: false, id: "", label: "" })}>Cancel</Button>
-            <Button variant="danger" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>Delete Patient</Button>
+            <Button variant="danger" loading={isDeleting} onClick={() => handleDeletePatient(deleteConfirm.id)}>Delete Patient</Button>
           </div>
         </div>
       </Modal>

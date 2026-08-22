@@ -112,11 +112,6 @@ export function AppointmentsClient() {
   const [showNotes, setShowNotes] = useState(false);
   const [showPortalPassword, setShowPortalPassword] = useState(false);
 
-  const [phoneWarning, setPhoneWarning] = useState<{ isDuplicate: boolean; matches: any[] }>({
-    isDuplicate: false,
-    matches: [],
-  });
-
   const { formatTime } = useClinicSettings();
   const perms = session?.user.permissions || [];
   const isSA = session?.user.isSuperAdmin;
@@ -206,31 +201,9 @@ export function AppointmentsClient() {
   const watchedScheduledTime = useWatch({ control, name: "scheduledTime" });
   const watchedDuration = useWatch({ control, name: "duration" });
 
-  const watchedPatientPhone = useWatch({ control: patientControl, name: "phone" });
   const rawCnic = useWatch({ control: patientControl, name: "cnic" });
   const watchedAllergies = useWatch({ control: patientControl, name: "allergies" });
   const watchedChronicDiseases = useWatch({ control: patientControl, name: "chronicDiseases" });
-
-  // Non-blocking duplicate phone warning for Patient Form
-  useEffect(() => {
-    if (!watchedPatientPhone || watchedPatientPhone.length < 5) {
-      setPhoneWarning({ isDuplicate: false, matches: [] });
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const res = await axios.get("/api/patients/check-duplicate-phone", {
-          params: { phone: watchedPatientPhone },
-        });
-        if (res.data?.data) {
-          setPhoneWarning(res.data.data);
-        }
-      } catch {
-        // Silently catch duplicate phone check errors
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [watchedPatientPhone]);
 
   const formSelectedDoctorObj = doctors.find((d: any) => String(d._id) === String(watchedDoctor));
   const doctorDefaultDuration = formSelectedDoctorObj?.appointmentDuration || 30;
@@ -339,7 +312,6 @@ export function AppointmentsClient() {
     setShowInsurance(false);
     setEnablePortal(false);
     setShowNotes(false);
-    setPhoneWarning({ isDuplicate: false, matches: [] });
   };
 
   const deleteMutation = useMutation({
@@ -949,27 +921,10 @@ export function AppointmentsClient() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField label="Phone Number" required error={patientErrors.phone?.message}>
+                <FormField label="Phone Number" error={patientErrors.phone?.message}>
                   <Input {...registerPatient("phone")} error={!!patientErrors.phone} placeholder="+92 300 1234567" />
                 </FormField>
               </div>
-
-              {/* Non-blocking phone duplicate warning */}
-              {phoneWarning.isDuplicate && phoneWarning.matches.length > 0 && (
-                <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold">Notice:</span> Another patient shares this phone number (Shared family number):
-                    <ul className="mt-1 space-y-0.5 font-medium text-amber-900">
-                      {phoneWarning.matches.map((m: any) => (
-                        <li key={m._id}>
-                          • {m.name} ({m.patientId}) — Status: <span className="capitalize">{m.status}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
 
               {/* Optional Section: CNIC */}
               <OptionalToggleHeader label="Add CNIC" checked={showCnic} onChange={setShowCnic} />

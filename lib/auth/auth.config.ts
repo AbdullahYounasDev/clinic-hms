@@ -1,4 +1,4 @@
-import { getServerSession } from "next-auth";
+import { getServerSession, type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/db/mongoose";
@@ -8,7 +8,7 @@ import { auditLog } from "@/lib/auth/audit";
 import { findPortalPatientByLogin } from "@/lib/auth/patient-portal";
 
 function extractPermissions(role: unknown): string[] {
-  const roleRecord = role as Record<string, unknown> | null | undefined;
+  const roleRecord = (role as unknown) as Record<string, unknown> | null | undefined;
   if (!Array.isArray(roleRecord?.permissions)) return [];
   return (roleRecord.permissions as Record<string, string>[]).map(
     (permission) => `${permission.module}:${permission.action}`
@@ -17,49 +17,59 @@ function extractPermissions(role: unknown): string[] {
 
 async function syncStaffTokenFromDb(token: Record<string, unknown>) {
   token.accountType = "staff";
-  await connectDB();
-  const dbUser = await User.findById(token.id)
-    .populate({ path: "role", populate: { path: "permissions" } })
-    .lean();
+  try {
+    await connectDB();
+    const dbUser = await User.findById(token.id)
+      .populate({ path: "role", populate: { path: "permissions" } })
+      .lean();
 
-  if (!dbUser) {
-    token.status = "inactive";
-    token.permissions = [];
-    token.isSuperAdmin = false;
+    if (!dbUser) {
+      token.status = "inactive";
+      token.permissions = [];
+      token.isSuperAdmin = false;
+      return token;
+    }
+
+    const role = (dbUser.role as unknown) as Record<string, unknown> | null | undefined;
+
+    token.status = dbUser.status;
+    token.mustChangePassword = dbUser.mustChangePassword;
+    token.isSuperAdmin = dbUser.isSuperAdmin;
+    token.role = role ? (role as { name: string }).name : undefined;
+    token.roleSlug = role ? (role as { slug: string }).slug : undefined;
+    token.permissions = extractPermissions(role);
+    token.fullName = `${dbUser.firstName} ${dbUser.lastName}`;
+
+    return token;
+  } catch {
+    // When offline or MongoDB unreachable, preserve existing token claims without crashing session
     return token;
   }
-
-  const role = dbUser.role as Record<string, unknown> | null | undefined;
-
-  token.status = dbUser.status;
-  token.mustChangePassword = dbUser.mustChangePassword;
-  token.isSuperAdmin = dbUser.isSuperAdmin;
-  token.role = role ? (role as { name: string }).name : undefined;
-  token.roleSlug = role ? (role as { slug: string }).slug : undefined;
-  token.permissions = extractPermissions(role);
-  token.fullName = `${dbUser.firstName} ${dbUser.lastName}`;
-
-  return token;
 }
 
 async function syncPatientTokenFromDb(token: Record<string, unknown>) {
   token.accountType = "patient";
-  await connectDB();
-  const patient = await Patient.findById(token.id).lean();
+  try {
+    await connectDB();
+    const patient = await Patient.findById(token.id).lean();
 
-  if (!patient || patient.status !== "active" || !patient.portalEnabled) {
-    token.status = "inactive";
+    if (!patient || patient.status !== "active" || !patient.portalEnabled) {
+      token.status = "inactive";
+      return token;
+    }
+
+    token.status = "active";
+    token.mustChangePassword = patient.mustChangePassword;
+    token.fullName = `${patient.firstName} ${patient.lastName}`;
+    token.patientDisplayId = patient.patientId;
+    token.phone = patient.phone;
+    token.email = patient.email;
+
+    return token;
+  } catch {
+    // When offline or MongoDB unreachable, preserve existing token claims without crashing session
     return token;
   }
-
-  token.status = "active";
-  token.mustChangePassword = patient.mustChangePassword;
-  token.fullName = `${patient.firstName} ${patient.lastName}`;
-  token.patientDisplayId = patient.patientId;
-  token.phone = patient.phone;
-  token.email = patient.email;
-
-  return token;
 }
 
 async function syncTokenFromDb(token: Record<string, unknown>) {
@@ -69,7 +79,7 @@ async function syncTokenFromDb(token: Record<string, unknown>) {
   return syncStaffTokenFromDb(token);
 }
 
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       id: "credentials",
@@ -103,7 +113,7 @@ export const authOptions = {
           throw new Error("Invalid password");
         }
 
-        const role = user.role as Record<string, unknown>;
+        const role = (user.role as unknown) as Record<string, unknown> | undefined;
         const permissions = extractPermissions(role);
 
         return {
@@ -111,14 +121,14 @@ export const authOptions = {
           email: user.email,
           name: `${user.firstName} ${user.lastName}`,
           fullName: `${user.firstName} ${user.lastName}`,
-          accountType: "staff",
-          role: (role as { name: string }).name,
-          roleSlug: (role as { slug: string }).slug,
+          accountType: "staff" as const,
+          role: role ? (role as { name: string }).name : undefined,
+          roleSlug: role ? (role as { slug: string }).slug : undefined,
           permissions,
           isSuperAdmin: user.isSuperAdmin,
           status: user.status,
           mustChangePassword: user.mustChangePassword,
-        } as Record<string, unknown>;
+        } as any;
       },
     }),
     CredentialsProvider({
@@ -156,7 +166,7 @@ export const authOptions = {
           email: patient.email || patient.phone,
           name: `${patient.firstName} ${patient.lastName}`,
           fullName: `${patient.firstName} ${patient.lastName}`,
-          accountType: "patient",
+          accountType: "patient" as const,
           patientDisplayId: patient.patientId,
           phone: patient.phone,
           permissions: [],
@@ -165,13 +175,13 @@ export const authOptions = {
           roleSlug: "patient",
           status: "active",
           mustChangePassword: patient.mustChangePassword,
-        } as Record<string, unknown>;
+        } as any;
       },
     }),
   ],
   events: {
-    async signIn({ user }: { user: Record<string, unknown> & { id?: string; email?: string | null } }) {
-      if (!user.id) return;
+    async signIn({ user }: { user: any }) {
+      if (!user?.id) return;
       const isPatient = user.accountType === "patient";
       await auditLog({
         userId: isPatient ? undefined : user.id,
@@ -185,7 +195,7 @@ export const authOptions = {
         status: "success",
       });
     },
-    async signOut({ token }: { token?: Record<string, unknown> }) {
+    async signOut({ token }: { token?: any }) {
       const userId = token?.id as string | undefined;
       if (!userId) return;
       const isPatient = token?.accountType === "patient";
@@ -201,7 +211,7 @@ export const authOptions = {
     },
   },
   callbacks: {
-    async jwt({ token, user }: { token: Record<string, unknown>; user?: Record<string, unknown> }) {
+    async jwt({ token, user }: { token: any; user?: any }) {
       if (user) {
         token.id = user.id;
         token.fullName = user.fullName;
@@ -214,25 +224,26 @@ export const authOptions = {
         token.mustChangePassword = user.mustChangePassword;
         token.patientDisplayId = user.patientDisplayId;
         token.phone = user.phone;
-      } else if (token.id) {
+      } else if (token?.id) {
         await syncTokenFromDb(token);
       }
 
       return token;
     },
-    async session({ session, token }: { session: Record<string, unknown>; token: Record<string, unknown> }) {
-      const user = session.user as Record<string, unknown>;
-      user.id = token.id;
-      user.fullName = token.fullName;
-      user.accountType = token.accountType || "staff";
-      user.role = token.role;
-      user.roleSlug = token.roleSlug;
-      user.permissions = token.permissions;
-      user.isSuperAdmin = token.isSuperAdmin;
-      user.status = token.status;
-      user.mustChangePassword = token.mustChangePassword;
-      user.patientDisplayId = token.patientDisplayId;
-      user.phone = token.phone;
+    async session({ session, token }: { session: any; token: any }) {
+      if (session?.user && token) {
+        session.user.id = token.id;
+        session.user.fullName = token.fullName;
+        session.user.accountType = token.accountType || "staff";
+        session.user.role = token.role;
+        session.user.roleSlug = token.roleSlug;
+        session.user.permissions = token.permissions;
+        session.user.isSuperAdmin = token.isSuperAdmin;
+        session.user.status = token.status;
+        session.user.mustChangePassword = token.mustChangePassword;
+        session.user.patientDisplayId = token.patientDisplayId;
+        session.user.phone = token.phone;
+      }
       return session;
     },
   },

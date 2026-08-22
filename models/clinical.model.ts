@@ -49,7 +49,7 @@ export interface IPatient extends Document {
   gender: string;
   dateOfBirth: Date;
   cnic?: string;
-  phone: string;
+  phone?: string;
   email?: string;
   address: typeof AddressSchema;
   emergencyContact: { name: string; relationship: string; phone: string; email?: string };
@@ -76,6 +76,7 @@ export interface IPatient extends Document {
   get fullName(): string;
   dateOfDeath: Date;
   causeOfDeath?: string;
+  tempId?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -88,7 +89,7 @@ const PatientSchema = new Schema<IPatient>(
     gender: { type: String, enum: ["male", "female", "other"], required: true },
     dateOfBirth: { type: Date, required: true },
     cnic: { type: String, trim: true },
-    phone: { type: String, required: true, index: true },
+    phone: { type: String, trim: true, index: true },
     email: { type: String, lowercase: true, trim: true },
     address: AddressSchema,
     emergencyContact: {
@@ -117,7 +118,9 @@ const PatientSchema = new Schema<IPatient>(
     lastLogin: { type: Date },
     lastLoginIp: { type: String },
     dateOfDeath: { type: Date },
-    causeOfDeath: { type: String }
+    causeOfDeath: { type: String },
+    /** Offline temporary ID for idempotent sync deduplication */
+    tempId: { type: String },
   },
   { timestamps: true }
 );
@@ -139,6 +142,7 @@ PatientSchema.virtual("age").get(function () {
 PatientSchema.index({ firstName: "text", lastName: "text", phone: "text", patientId: "text", cnic: "text" });
 PatientSchema.index({ email: 1 }, { unique: true, sparse: true });
 PatientSchema.index({ cnic: 1 }, { unique: true, sparse: true });
+PatientSchema.index({ tempId: 1 }, { unique: true, sparse: true });
 PatientSchema.set("toJSON", { virtuals: true });
 PatientSchema.set("toObject", { virtuals: true });
 

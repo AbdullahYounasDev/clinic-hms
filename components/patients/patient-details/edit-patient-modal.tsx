@@ -46,10 +46,6 @@ function OptionalToggleHeader({
 
 export function EditPatientModal({ open, onClose, patient, onUpdate, isPending, error }: any) {
   const [showPortalPassword, setShowPortalPassword] = useState(false);
-  const [phoneWarning, setPhoneWarning] = useState<{ isDuplicate: boolean; matches: any[] }>({
-    isDuplicate: false,
-    matches: [],
-  });
 
   // Optional Section Toggles
   const [showCnic, setShowCnic] = useState(false);
@@ -74,13 +70,11 @@ export function EditPatientModal({ open, onClose, patient, onUpdate, isPending, 
 
   const status = useWatch({ control, name: "status" });
   const isDeceased = status === "deceased";
-  const watchedPhone = useWatch({ control, name: "phone" });
   const rawCnic = useWatch({ control, name: "cnic" });
 
   useEffect(() => {
     if (open && patient) {
       setShowPortalPassword(false);
-      setPhoneWarning({ isDuplicate: false, matches: [] });
 
       // Auto-detect existing patient data to keep populated optional sections open
       setShowCnic(!!patient.cnic);
@@ -119,27 +113,6 @@ export function EditPatientModal({ open, onClose, patient, onUpdate, isPending, 
       });
     }
   }, [open, patient, reset]);
-
-  // Non-blocking duplicate phone warning
-  useEffect(() => {
-    if (!watchedPhone || watchedPhone.length < 5 || !patient?._id) {
-      setPhoneWarning({ isDuplicate: false, matches: [] });
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const res = await axios.get("/api/patients/check-duplicate-phone", {
-          params: { phone: watchedPhone, excludeId: patient._id },
-        });
-        if (res.data?.data) {
-          setPhoneWarning(res.data.data);
-        }
-      } catch {
-        // Silently catch duplicate phone check errors
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [watchedPhone, patient?._id]);
 
   const handleFormSubmit = (data: UpdatePatientInput) => {
     const formatted = { ...data };
@@ -181,7 +154,7 @@ export function EditPatientModal({ open, onClose, patient, onUpdate, isPending, 
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Phone Number" required error={errors.phone?.message}>
+          <FormField label="Phone Number" error={errors.phone?.message}>
             <Input {...register("phone")} placeholder="+92 300 1234567" />
           </FormField>
           <FormField label="Status" required error={errors.status?.message}>
@@ -192,23 +165,6 @@ export function EditPatientModal({ open, onClose, patient, onUpdate, isPending, 
             </Select>
           </FormField>
         </div>
-
-        {/* Non-blocking phone duplicate warning */}
-        {phoneWarning.isDuplicate && phoneWarning.matches.length > 0 && (
-          <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-semibold">Notice:</span> Another patient shares this phone number (Shared family number):
-              <ul className="mt-1 space-y-0.5 font-medium text-amber-900">
-                {phoneWarning.matches.map((m: any) => (
-                  <li key={m._id}>
-                    • {m.name} ({m.patientId}) — Status: <span className="capitalize">{m.status}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
 
         {isDeceased && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-red-200 pt-4">

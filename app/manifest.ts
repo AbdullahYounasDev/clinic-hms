@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 import connectDB from "@/lib/db/mongoose";
+
+export const dynamic = "force-dynamic";
 import { Settings } from "@/models/operations.model";
 import {
   NEXT_PUBLIC_CLINIC_NAME,
