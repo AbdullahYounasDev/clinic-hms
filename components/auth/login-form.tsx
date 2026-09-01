@@ -301,6 +301,13 @@ export function LoginForm() {
               </p>
             </div>
 
+            {/* Demo Credentials */}
+            <div className="mb-5 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 px-4 py-3 text-xs text-teal-800 dark:text-teal-300">
+              <p className="font-semibold mb-0.5">Demo credentials</p>
+              <p>Email: admin@clinic.com</p>
+              <p>Password: 123456789</p>
+            </div>
+
             {/* Login Form */}
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               {/* Email Field */}
