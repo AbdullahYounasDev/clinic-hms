@@ -373,6 +373,8 @@ export function LoginForm() {
 
               {/* Submit Button */}
               <button
+                data-storepulse-product-id="staff-signin"
+                data-storepulse-product-name="Staff Sign in Button"
                 type="submit"
                 disabled={isLoading}
                 className={cn(

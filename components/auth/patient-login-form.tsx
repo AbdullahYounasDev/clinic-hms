@@ -337,6 +337,8 @@ export function PatientLoginForm() {
               </div>
 
               <button
+              data-storepulse-product-id="patient-signin"
+                data-storepulse-product-name="Patient Sign in Button"
                 type="submit"
                 disabled={isLoading}
                 className={cn(

